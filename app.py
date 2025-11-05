@@ -657,7 +657,7 @@ if st.button("Run Granger Causality Test"):
 
 
 # ======================================================================
-# 🟩 QUANTILE-on-QUANTILE REGRESSION (Stable Cloud-Compatible)
+# 🟩 QUANTILE-on-QUANTILE REGRESSION (Unified Color Scheme)
 # ======================================================================
 st.header("📈 Quantile-on-Quantile Regression (QQR)")
 
@@ -671,8 +671,6 @@ if panel_col:
     all_groups = df[panel_col].dropna().unique().tolist()
     selected_groups = st.multiselect(f"Select {panel_col}", all_groups, default=all_groups[:3])
 
-heatmap_color = st.color_picker("Heatmap Base Color", "#1f77b4", key="qqr_heatmap2")
-surface_color = st.color_picker("Surface Base Color", "#FF6347", key="qqr_surface2")
 quantile_n = st.slider("Number of Quantiles", 5, 30, 10, key="qqr_quantiles2")
 
 if st.button("Run QQR", key="qqr_run2"):
@@ -720,16 +718,14 @@ if st.button("Run QQR", key="qqr_run2"):
         st.plotly_chart(fig_hm, use_container_width=True)
 
         # ---------- 3D Surface ----------
-        # Cloud-safe minimalistic scene definition
         fig_3d = go.Figure(data=[go.Surface(
             z=z_matrix,
             x=qs,
             y=qs,
-            colorscale=[[0, surface_color], [0.5, "#FFA07A"], [1, "#003366"]],
-            showscale=True
+            colorscale="Viridis",
+            showscale=True,
+            colorbar_title="Correlation"
         )])
-
-        # Use flat layout keys instead of nested dicts to prevent scene validation error
         fig_3d.update_scenes(
             xaxis_title=f"{q_x} Quantiles",
             yaxis_title=f"{q_y} Quantiles",
@@ -751,6 +747,7 @@ if st.button("Run QQR", key="qqr_run2"):
             run_qqr(subset[q_y], subset[q_x], f"({grp})")
     else:
         run_qqr(df[q_y], df[q_x])
+
 
 # ======================================================================
 # 🟩 SECTION 13: MACHINE LEARNING FORECASTING (PROPHET MODEL)
