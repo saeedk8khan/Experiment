@@ -656,98 +656,136 @@ if st.button("Run Granger Causality Test"):
         st.error(f"Error while running Granger Causality Test: {e}")
 
 
-# ======================================================================
-# 🟩 QUANTILE-on-QUANTILE REGRESSION (Unified Color Scheme)
-# ======================================================================
-st.header("📈 Quantile-on-Quantile Regression (QQR)")
+# ================================
+# 📊 QUANTILE-on-QUANTILE REGRESSION (QQR)
+# ================================
 
-q_y = st.selectbox("Dependent variable (Y)", numeric_cols, index=0, key="qqr_y2")
-q_x = st.selectbox("Independent variable (X)", [c for c in numeric_cols if c != q_y], index=0, key="qqr_x2")
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+import streamlit as st
 
-potential_panels = [col for col in df.columns if col.lower() in ["country", "id", "entity", "firm", "region"]]
-panel_col = potential_panels[0] if potential_panels else None
-selected_groups = None
-if panel_col:
-    all_groups = df[panel_col].dropna().unique().tolist()
-    selected_groups = st.multiselect(f"Select {panel_col}", all_groups, default=all_groups[:3])
+# 🔹 Function to compute QQR Matrix and Flattened Table
+def run_qqr(y, x, title_suffix=""):
+    y = y.dropna()
+    x = x.dropna()
+    common_index = y.index.intersection(x.index)
+    y, x = y.loc[common_index], x.loc[common_index]
 
-quantile_n = st.slider("Number of Quantiles", 5, 30, 10, key="qqr_quantiles2")
+    quantiles = np.linspace(0.05, 0.95, 10)
+    z_matrix = np.zeros((len(quantiles), len(quantiles)))
 
-if st.button("Run QQR", key="qqr_run2"):
-    import numpy as np
-    import plotly.graph_objects as go
+    for i, q_y in enumerate(quantiles):
+        for j, q_x in enumerate(quantiles):
+            try:
+                mask_y = y <= y.quantile(q_y)
+                mask_x = x <= x.quantile(q_x)
+                z_matrix[i, j] = np.corrcoef(y[mask_y], x[mask_x])[0, 1]
+            except Exception:
+                z_matrix[i, j] = np.nan
 
-    def run_qqr(y, x, title_suffix=""):
-        data = pd.concat([y, x], axis=1).dropna()
-        if data.empty or len(data) < 10:
-            st.warning(f"⚠️ Insufficient observations for {title_suffix}")
-            return
+    # Create a DataFrame table version for display
+    table_data = []
+    for i, qy in enumerate(quantiles):
+        for j, qx in enumerate(quantiles):
+            corr_val = z_matrix[i, j]
+            if pd.notnull(corr_val):
+                if corr_val > 0.5:
+                    strength = "Strong Positive"
+                elif corr_val > 0.2:
+                    strength = "Weak Positive"
+                elif corr_val < -0.5:
+                    strength = "Strong Negative"
+                elif corr_val < -0.2:
+                    strength = "Weak Negative"
+                else:
+                    strength = "Neutral"
+                table_data.append([round(qy, 2), round(qx, 2), round(corr_val, 3), strength])
+    table_df = pd.DataFrame(table_data, columns=["Dependent Quantile (τᵧ)", "Independent Quantile (τₓ)", "Correlation", "Interpretation"])
 
-        y, x = data.iloc[:, 0], data.iloc[:, 1]
-        qs = np.linspace(0.05, 0.95, quantile_n)
-        z_matrix = np.full((len(qs), len(qs)), np.nan)
+    # 🎨 Shared color scale
+    color_scale = "Viridis"
 
-        for i, q1 in enumerate(qs):
-            y_cut = y[y <= np.quantile(y, q1)]
-            for j, q2 in enumerate(qs):
-                x_cut = x[x <= np.quantile(x, q2)]
-                common = min(len(y_cut), len(x_cut))
-                if common > 3:
-                    z_matrix[i, j] = np.corrcoef(y_cut.iloc[:common], x_cut.iloc[:common])[0, 1]
+    # 2D Heatmap
+    fig_2d = px.imshow(
+        z_matrix,
+        x=[round(q, 2) for q in quantiles],
+        y=[round(q, 2) for q in quantiles],
+        color_continuous_scale=color_scale,
+        labels=dict(x="Independent Quantile (τₓ)", y="Dependent Quantile (τᵧ)", color="Correlation"),
+        title=f"QQR Heatmap {title_suffix}"
+    )
+    fig_2d.update_layout(width=700, height=500, font=dict(size=12))
 
-        z_matrix = np.nan_to_num(z_matrix, nan=0.0)
+    # 3D Surface
+    fig_3d = go.Figure(data=[go.Surface(
+        z=z_matrix,
+        x=[round(q, 2) for q in quantiles],
+        y=[round(q, 2) for q in quantiles],
+        colorscale=color_scale,
+        showscale=True
+    )])
+    fig_3d.update_layout(
+        title=f"QQR 3D Surface {title_suffix}",
+        scene=dict(
+            xaxis_title="Independent Quantile (τₓ)",
+            yaxis_title="Dependent Quantile (τᵧ)",
+            zaxis_title="Correlation",
+            xaxis=dict(showbackground=False),
+            yaxis=dict(showbackground=False),
+            zaxis=dict(showbackground=False)
+        ),
+        width=800,
+        height=600
+    )
 
-        # ---------- 2D Heatmap ----------
-        fig_hm = go.Figure(
-            go.Heatmap(
-                z=z_matrix,
-                x=[f"{q:.2f}" for q in qs],
-                y=[f"{q:.2f}" for q in qs],
-                colorscale="Viridis",
-                colorbar_title="Correlation"
-            )
-        )
-        fig_hm.update_layout(
-            title=f"Quantile-on-Quantile Heatmap {title_suffix}",
-            xaxis_title=f"{q_x} Quantiles",
-            yaxis_title=f"{q_y} Quantiles",
-            template="plotly_white",
-            width=850,
-            height=650
-        )
-        st.plotly_chart(fig_hm, use_container_width=True)
+    return fig_2d, fig_3d, table_df
 
-        # ---------- 3D Surface ----------
-        fig_3d = go.Figure(data=[go.Surface(
-            z=z_matrix,
-            x=qs,
-            y=qs,
-            colorscale="Viridis",
-            showscale=True,
-            colorbar_title="Correlation"
-        )])
-        fig_3d.update_scenes(
-            xaxis_title=f"{q_x} Quantiles",
-            yaxis_title=f"{q_y} Quantiles",
-            zaxis_title="Correlation"
-        )
-        fig_3d.update_layout(
-            title=f"3D Surface QQR {title_suffix}",
-            width=850,
-            height=650,
-            margin=dict(l=0, r=0, b=0, t=50),
-            template="plotly_white"
-        )
-        st.plotly_chart(fig_3d, use_container_width=True)
 
-    if panel_col and selected_groups:
-        for grp in selected_groups:
-            subset = df[df[panel_col] == grp]
-            st.subheader(f"{panel_col}: {grp}")
-            run_qqr(subset[q_y], subset[q_x], f"({grp})")
-    else:
-        run_qqr(df[q_y], df[q_x])
+# 🔹 Streamlit Section for QQR
+st.markdown("## 🔍 Quantile-on-Quantile Regression (QQR)")
 
+if 'df' in locals():
+    df = df.dropna()
+    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+
+    if len(numeric_cols) >= 2:
+        q_y = st.selectbox("Dependent variable (Y)", options=numeric_cols, key="qqr_y")
+        q_x = st.selectbox("Independent variable (X)", options=numeric_cols, key="qqr_x")
+
+        group_col = st.selectbox("Optional Panel Identifier (e.g., Country)", options=["None"] + df.columns.tolist(), key="qqr_group")
+
+        if st.button("Run QQR Analysis"):
+            if group_col != "None":
+                groups = df[group_col].dropna().unique()
+                for grp in groups:
+                    subdf = df[df[group_col] == grp]
+                    st.markdown(f"### Country: {grp}")
+                    fig_2d, fig_3d, table_df = run_qqr(subdf[q_y], subdf[q_x], title_suffix=f"({grp})")
+
+                    st.plotly_chart(fig_2d, use_container_width=True)
+                    st.plotly_chart(fig_3d, use_container_width=True)
+
+                    st.dataframe(table_df, use_container_width=True)
+                    st.download_button(
+                        label=f"📥 Download QQR Results for {grp}",
+                        data=table_df.to_csv(index=False).encode('utf-8'),
+                        file_name=f"QQR_{grp}.csv",
+                        mime="text/csv"
+                    )
+            else:
+                fig_2d, fig_3d, table_df = run_qqr(df[q_y], df[q_x])
+                st.plotly_chart(fig_2d, use_container_width=True)
+                st.plotly_chart(fig_3d, use_container_width=True)
+
+                st.dataframe(table_df, use_container_width=True)
+                st.download_button(
+                    label="📥 Download QQR Results",
+                    data=table_df.to_csv(index=False).encode('utf-8'),
+                    file_name="QQR_Results.csv",
+                    mime="text/csv"
+                )
 
 # ======================================================================
 # 🟩 SECTION 13: MACHINE LEARNING FORECASTING (PROPHET MODEL)
