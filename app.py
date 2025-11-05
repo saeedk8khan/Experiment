@@ -657,57 +657,51 @@ if st.button("Run Granger Causality Test"):
 
 
 # ======================================================================
-# 🟩 SECTION: QUANTILE-on-QUANTILE REGRESSION (Stable, HD Final)
+# 🟩 QUANTILE-on-QUANTILE REGRESSION (Stable Cloud-Compatible)
 # ======================================================================
 st.header("📈 Quantile-on-Quantile Regression (QQR)")
 
-q_y = st.selectbox("Dependent variable (Y)", options=numeric_cols, index=0, key="qqr_y")
-q_x = st.selectbox("Independent variable (X)", options=[c for c in numeric_cols if c != q_y], index=0, key="qqr_x")
+q_y = st.selectbox("Dependent variable (Y)", numeric_cols, index=0, key="qqr_y2")
+q_x = st.selectbox("Independent variable (X)", [c for c in numeric_cols if c != q_y], index=0, key="qqr_x2")
 
-# Detect panel column automatically
 potential_panels = [col for col in df.columns if col.lower() in ["country", "id", "entity", "firm", "region"]]
 panel_col = potential_panels[0] if potential_panels else None
-
+selected_groups = None
 if panel_col:
-    unique_groups = df[panel_col].dropna().unique().tolist()
-    selected_groups = st.multiselect(f"Select {panel_col} for QQR analysis", options=unique_groups, default=unique_groups[:3])
-else:
-    selected_groups = None
+    all_groups = df[panel_col].dropna().unique().tolist()
+    selected_groups = st.multiselect(f"Select {panel_col}", all_groups, default=all_groups[:3])
 
-color_heatmap = st.color_picker("Select Heatmap Base Color", "#1f77b4", key="qqr_color_heatmap")
-color_surface = st.color_picker("Select 3D Surface Base Color", "#FF6347", key="qqr_color_surface")
-max_quantiles = st.slider("Number of Quantiles", min_value=5, max_value=30, value=10, key="qqr_quantiles")
+heatmap_color = st.color_picker("Heatmap Base Color", "#1f77b4", key="qqr_heatmap2")
+surface_color = st.color_picker("Surface Base Color", "#FF6347", key="qqr_surface2")
+quantile_n = st.slider("Number of Quantiles", 5, 30, 10, key="qqr_quantiles2")
 
-if st.button("Run QQR Analysis", key="qqr_run"):
+if st.button("Run QQR", key="qqr_run2"):
     import numpy as np
     import plotly.graph_objects as go
 
     def run_qqr(y, x, title_suffix=""):
-        # Drop NA and align data safely
         data = pd.concat([y, x], axis=1).dropna()
         if data.empty or len(data) < 10:
-            st.warning(f"⚠️ Not enough valid observations for {title_suffix}")
+            st.warning(f"⚠️ Insufficient observations for {title_suffix}")
             return
 
         y, x = data.iloc[:, 0], data.iloc[:, 1]
-        qs = np.linspace(0.05, 0.95, max_quantiles)
+        qs = np.linspace(0.05, 0.95, quantile_n)
         z_matrix = np.full((len(qs), len(qs)), np.nan)
 
         for i, q1 in enumerate(qs):
-            y_q = np.quantile(y, q1)
-            y_sub = y[y <= y_q]
+            y_cut = y[y <= np.quantile(y, q1)]
             for j, q2 in enumerate(qs):
-                x_q = np.quantile(x, q2)
-                x_sub = x[x <= x_q]
-                common_len = min(len(y_sub), len(x_sub))
-                if common_len > 3:
-                    z_matrix[i, j] = np.corrcoef(y_sub.iloc[:common_len], x_sub.iloc[:common_len])[0, 1]
+                x_cut = x[x <= np.quantile(x, q2)]
+                common = min(len(y_cut), len(x_cut))
+                if common > 3:
+                    z_matrix[i, j] = np.corrcoef(y_cut.iloc[:common], x_cut.iloc[:common])[0, 1]
 
         z_matrix = np.nan_to_num(z_matrix, nan=0.0)
 
-        # ---- 2D Heatmap ----
+        # ---------- 2D Heatmap ----------
         fig_hm = go.Figure(
-            data=go.Heatmap(
+            go.Heatmap(
                 z=z_matrix,
                 x=[f"{q:.2f}" for q in qs],
                 y=[f"{q:.2f}" for q in qs],
@@ -716,54 +710,47 @@ if st.button("Run QQR Analysis", key="qqr_run"):
             )
         )
         fig_hm.update_layout(
-            title=f"<b>Quantile-on-Quantile Heatmap {title_suffix}</b>",
+            title=f"Quantile-on-Quantile Heatmap {title_suffix}",
             xaxis_title=f"{q_x} Quantiles",
             yaxis_title=f"{q_y} Quantiles",
             template="plotly_white",
-            width=800,
-            height=600
+            width=850,
+            height=650
         )
         st.plotly_chart(fig_hm, use_container_width=True)
 
-        # ---- 3D Surface ----
-        # Proper colorscale definition
-        colorscale_3d = [
-            [0.0, color_surface],
-            [0.5, "#FFA07A"],
-            [1.0, "#003366"]
-        ]
-
+        # ---------- 3D Surface ----------
+        # Cloud-safe minimalistic scene definition
         fig_3d = go.Figure(data=[go.Surface(
             z=z_matrix,
             x=qs,
             y=qs,
-            colorscale=colorscale_3d,
-            contours=dict(z=dict(show=True, usecolormap=True, project_z=True)),
+            colorscale=[[0, surface_color], [0.5, "#FFA07A"], [1, "#003366"]],
             showscale=True
         )])
 
+        # Use flat layout keys instead of nested dicts to prevent scene validation error
+        fig_3d.update_scenes(
+            xaxis_title=f"{q_x} Quantiles",
+            yaxis_title=f"{q_y} Quantiles",
+            zaxis_title="Correlation"
+        )
         fig_3d.update_layout(
-            scene=dict(
-                xaxis=dict(title=f"{q_x} Quantiles", titlefont=dict(size=14), tickfont=dict(size=10)),
-                yaxis=dict(title=f"{q_y} Quantiles", titlefont=dict(size=14), tickfont=dict(size=10)),
-                zaxis=dict(title="Correlation", titlefont=dict(size=14), tickfont=dict(size=10)),
-                bgcolor="white"
-            ),
-            title=f"<b>3D Surface QQR {title_suffix}</b>",
+            title=f"3D Surface QQR {title_suffix}",
+            width=850,
+            height=650,
             margin=dict(l=0, r=0, b=0, t=50),
-            autosize=True
+            template="plotly_white"
         )
         st.plotly_chart(fig_3d, use_container_width=True)
 
-    # Run QQR per panel or overall
     if panel_col and selected_groups:
         for grp in selected_groups:
-            subdf = df[df[panel_col] == grp]
-            st.subheader(f"Group: {grp}")
-            run_qqr(subdf[q_y], subdf[q_x], title_suffix=f"({grp})")
+            subset = df[df[panel_col] == grp]
+            st.subheader(f"{panel_col}: {grp}")
+            run_qqr(subset[q_y], subset[q_x], f"({grp})")
     else:
         run_qqr(df[q_y], df[q_x])
-
 
 # ======================================================================
 # 🟩 SECTION 13: MACHINE LEARNING FORECASTING (PROPHET MODEL)
