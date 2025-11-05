@@ -6,3 +6,7 @@ seaborn
 plotly
 prophet
 statsmodels
+io
+pyperclip
+base64
+
