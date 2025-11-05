@@ -99,66 +99,39 @@ if filter_col:
     lo, hi = st.sidebar.slider("Filter range", min_value=minv, max_value=maxv, value=(minv, maxv))
     df = df[(df[filter_col] >= lo) & (df[filter_col] <= hi)]
 
+
 # ======================================================================
-# 🟩 SECTION 3: DATA PREVIEW & DESCRIPTIVE STATISTICS (Final Version)
+# 🟩 SECTION 3: DESCRIPTIVE STATISTICS & DATA OVERVIEW (FINAL CLEAN VERSION)
 # ======================================================================
+
+import io
+
 st.header("🧾 Descriptive Statistics & Data Overview")
 
 col1, col2 = st.columns(2)
 
+# 🟩 Data Preview
 with col1:
-    st.subheader("Data Preview (First 50 Rows)")
-    st.dataframe(df.head(50))
+    st.subheader("Data Preview")
+    st.dataframe(df.head(50), use_container_width=True)
 
-    # 🟩 Download button for Data Preview
-    preview_csv = df.head(50).to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="⬇️ Download Preview CSV",
-        data=preview_csv,
-        file_name="data_preview.csv",
-        mime="text/csv"
-    )
-
-    # 🟩 Copy preview table text (without requiring tabulate)
-    preview_text = df.head(50).to_string(index=False)
-    st.text_area("📋 Copy Data Preview", preview_text, height=200)
-
+# 🟩 Summary statistics with 3 decimal places
 with col2:
     st.subheader("Summary Statistics (Rounded to 3 Decimals)")
     summary_df = df.describe(include="all").round(3)
-    st.dataframe(summary_df)
+    st.dataframe(summary_df, use_container_width=True)
 
-    # 🟩 Download button for Summary Statistics
-    summary_csv = summary_df.to_csv().encode('utf-8')
-    st.download_button(
-        label="⬇️ Download Summary CSV",
-        data=summary_csv,
-        file_name="summary_statistics.csv",
-        mime="text/csv"
-    )
+# 🟩 Download descriptive stats as Excel
+excel_buf = io.BytesIO()
+with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
+    summary_df.to_excel(writer, index=True, sheet_name="DescriptiveStats")
 
-    # 🟩 Copy summary text (for easy manual copying)
-    summary_text = summary_df.to_string()
-    st.text_area("📋 Copy Summary Statistics", summary_text, height=200)
-
-    st.subheader("Missing Values per Column")
-    missing_df = df.isna().sum().reset_index()
-    missing_df.columns = ["Column", "Missing Values"]
-    st.dataframe(missing_df)
-
-    # 🟩 Download button for Missing Values
-    missing_csv = missing_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="⬇️ Download Missing Values CSV",
-        data=missing_csv,
-        file_name="missing_values.csv",
-        mime="text/csv"
-    )
-
-    # 🟩 Copy missing values table
-    missing_text = missing_df.to_string(index=False)
-    st.text_area("📋 Copy Missing Values", missing_text, height=150)
-
+st.download_button(
+    label="📥 Download Summary Statistics (Excel)",
+    data=excel_buf.getvalue(),
+    file_name="summary_statistics.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 # ======================================================================
 # 🟩 SECTION 4: DEPENDENT / INDEPENDENT VARIABLE SELECTION
