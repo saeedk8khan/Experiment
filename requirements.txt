@@ -7,3 +7,6 @@ plotly
 prophet
 statsmodels
 tabulate
+kaleido
+
+
