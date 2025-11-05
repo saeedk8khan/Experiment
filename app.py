@@ -221,12 +221,68 @@ st.pyplot(fig_c)
 # ======================================================================
 # 🟩 SECTION 9: BOXPLOTS
 # ======================================================================
-st.header("📦 Boxplots")
-box_col = st.selectbox("Choose column for boxplot", options=numeric_cols, index=0, key="box")
-fig_b, axb = plt.subplots(figsize=(6, 4))
-sns.boxplot(data=df, x=box_col, ax=axb)
-axb.set_facecolor(bg_color)
-st.pyplot(fig_b)
+# ======================================================================
+# 🟩 SECTION 9: DISTRIBUTION COMPARISON (BAR, BOX, VIOLIN, STRIP)
+# ======================================================================
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+st.header("📊 Distribution Comparison")
+
+# Select a numeric column
+col_to_plot = st.selectbox("Select numeric variable for distribution analysis", numeric_cols, key="dist_col")
+
+# Sidebar controls for background and style
+st.sidebar.header("Distribution Chart Settings")
+sns_style = st.sidebar.selectbox("Select Seaborn Style", ["whitegrid", "darkgrid", "white", "ticks", "dark"], index=1)
+plt_style = st.sidebar.selectbox("Select Plot Style", ["default", "seaborn-v0_8-colorblind", "seaborn-v0_8-poster", "classic"], index=0)
+sns.set_style(sns_style)
+plt.style.use(plt_style)
+
+# 🟩 Function: create_distribution_chart
+def create_distribution_chart(data_series, y_label, title):
+    """
+    Creates a figure with 4 horizontal subplots: bar, box, violin, strip.
+    Each shows the same data in a different style.
+    """
+    fig, axes = plt.subplots(1, 4, figsize=(16, 5), sharey=True)
+    
+    # 🟩 Subplot 1: Bar Plot (Mean & Std Dev)
+    mean_val = data_series.mean()
+    std_val = data_series.std()
+    sns.barplot(x=["Mean"], y=[mean_val], ax=axes[0], color="skyblue", ci=None)
+    axes[0].errorbar(x=[0], y=[mean_val], yerr=std_val, fmt='o', color='black', capsize=5)
+    axes[0].set_xlabel("Mean & Std Dev")
+    axes[0].set_ylabel(y_label)
+    axes[0].set_title("Bar Plot")
+
+    # 🟩 Subplot 2: Box Plot
+    sns.boxplot(y=data_series, ax=axes[1], color="lightgreen")
+    axes[1].set_xlabel("Quartile Box")
+    axes[1].set_title("Box Plot")
+
+    # 🟩 Subplot 3: Violin Plot
+    sns.violinplot(y=data_series, ax=axes[2], color="lightcoral")
+    axes[2].set_xlabel("Density")
+    axes[2].set_title("Violin Plot")
+
+    # 🟩 Subplot 4: Strip Plot (with mean line)
+    sns.stripplot(y=data_series, ax=axes[3], color="gray", jitter=True, alpha=0.6)
+    axes[3].axhline(mean_val, color="red", linestyle="--", label=f"Mean = {mean_val:.2f}")
+    axes[3].set_xlabel("Data Points")
+    axes[3].set_title("Strip Plot")
+    axes[3].legend(loc="upper right", fontsize="small")
+
+    # 🟩 Shared layout
+    fig.suptitle(title, fontsize=16, weight="bold")
+    fig.tight_layout(pad=2)
+    return fig
+
+# 🟩 Generate and Display the Combined Distribution Plot
+if col_to_plot:
+    fig = create_distribution_chart(df[col_to_plot].dropna(), y_label=col_to_plot, title=f"Distribution Overview: {col_to_plot}")
+    st.pyplot(fig)
+
 
 # ======================================================================
 # 🟩 SECTION 10: DECOMPOSITION (TREND / SEASONAL / RESIDUAL)
