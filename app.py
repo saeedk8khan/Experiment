@@ -6,7 +6,6 @@
 # statsmodels, openpyxl.
 # Run locally: `streamlit run app.py`
 # ======================================================================
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -194,6 +193,129 @@ if st.button("Run Unit Root Tests"):
 
     except Exception as e:
         st.error(f"Error while running Unit Root Tests: {e}")
+
+
+# ======================================================================
+# 🟩 SECTION X: COINTEGRATION ANALYSIS (ENGLE–GRANGER & JOHANSEN)
+# ======================================================================
+
+import io
+from statsmodels.tsa.stattools import coint
+from statsmodels.tsa.vector_ar.vecm import coint_johansen
+
+st.header("🔗 Cointegration Analysis")
+
+# Variable selection
+st.subheader("Variable Selection")
+selected_vars = st.multiselect("Select Variables for Cointegration Analysis", df.columns.tolist())
+
+# Lag selection
+selected_lag = st.selectbox("Select Maximum Lag", list(range(0, 10)), index=1)
+
+# Test selection buttons
+col_btn1, col_btn2 = st.columns(2)
+run_engle = col_btn1.button("Run Engle–Granger Cointegration Test")
+run_johansen = col_btn2.button("Run Johansen Cointegration Test")
+
+# ====================== ENGLE–GRANGER TEST ======================
+if run_engle:
+    try:
+        if len(selected_vars) < 2:
+            st.warning("Please select at least two variables for Engle–Granger test.")
+        else:
+            results = []
+            y = selected_vars[0]
+            x_vars = selected_vars[1:]
+
+            for x in x_vars:
+                score, pvalue, _ = coint(df[y].dropna(), df[x].dropna(), maxlag=selected_lag)
+                results.append({
+                    "Test Type": "Engle–Granger",
+                    "Dependent (Y)": y,
+                    "Independent (X)": x,
+                    "Lag Used": selected_lag,
+                    "Test Statistic": round(score, 4),
+                    "p-Value": round(pvalue, 4)
+                })
+
+            results_df = pd.DataFrame(results)
+
+            st.subheader("📊 Engle–Granger Cointegration Test Results")
+            st.dataframe(results_df, use_container_width=True)
+
+            # Copy results
+            st.markdown("#### 📋 Copy Results")
+            st.code(results_df.to_markdown(index=False), language="markdown")
+
+            # Download results
+            excel_buf = io.BytesIO()
+            with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
+                results_df.to_excel(writer, index=False, sheet_name="EngleGranger")
+            st.download_button(
+                label="📥 Download Engle–Granger Results (Excel)",
+                data=excel_buf.getvalue(),
+                file_name="engle_granger_results.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+    except Exception as e:
+        st.error(f"Error while running Engle–Granger test: {e}")
+
+# ====================== JOHANSEN TEST ======================
+if run_johansen:
+    try:
+        if len(selected_vars) < 2:
+            st.warning("Please select at least two variables for Johansen test.")
+        else:
+            data = df[selected_vars].dropna()
+
+            johansen_result = coint_johansen(data, det_order=0, k_ar_diff=selected_lag)
+            trace_stats = johansen_result.lr1
+            trace_crit = johansen_result.cvt
+            maxeig_stats = johansen_result.lr2
+            maxeig_crit = johansen_result.cvm
+
+            results_trace = pd.DataFrame({
+                "Test": ["Johansen Trace"] * len(trace_stats),
+                "Rank": list(range(len(trace_stats))),
+                "Test Statistic": trace_stats.round(4),
+                "Crit 90%": trace_crit[:, 0].round(4),
+                "Crit 95%": trace_crit[:, 1].round(4),
+                "Crit 99%": trace_crit[:, 2].round(4)
+            })
+
+            results_maxeig = pd.DataFrame({
+                "Test": ["Johansen Max-Eigen"] * len(maxeig_stats),
+                "Rank": list(range(len(maxeig_stats))),
+                "Test Statistic": maxeig_stats.round(4),
+                "Crit 90%": maxeig_crit[:, 0].round(4),
+                "Crit 95%": maxeig_crit[:, 1].round(4),
+                "Crit 99%": maxeig_crit[:, 2].round(4)
+            })
+
+            results_df = pd.concat([results_trace, results_maxeig], ignore_index=True)
+
+            st.subheader("📊 Johansen Cointegration Test Results")
+            st.dataframe(results_df, use_container_width=True)
+
+            # Copy results
+            st.markdown("#### 📋 Copy Results")
+            st.code(results_df.to_markdown(index=False), language="markdown")
+
+            # Download results
+            excel_buf = io.BytesIO()
+            with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
+                results_df.to_excel(writer, index=False, sheet_name="Johansen")
+            st.download_button(
+                label="📥 Download Johansen Results (Excel)",
+                data=excel_buf.getvalue(),
+                file_name="johansen_results.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+    except Exception as e:
+        st.error(f"Error while running Johansen test: {e}")
+
 
 # ======================================================================
 # 🟩 SECTION 3: DESCRIPTIVE STATISTICS & DATA OVERVIEW (RAW / LOG OPTION)
