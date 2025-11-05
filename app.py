@@ -664,7 +664,7 @@ st.header("📈 Quantile-on-Quantile Regression (QQR)")
 q_y = st.selectbox("Dependent variable (Y)", options=numeric_cols, index=0, key="qqr_y")
 q_x = st.selectbox("Independent variable (X)", options=[c for c in numeric_cols if c != q_y], index=0, key="qqr_x")
 
-# Optional: for panel data separation (e.g., country)
+# Optional: for panel data (country, firm, etc.)
 panel_col = st.selectbox("Panel/Group column (optional)", options=[None] + list(df.columns), index=0, key="qqr_panel")
 
 color_heatmap = st.color_picker("Select Heatmap Color", "#00BFFF", key="qqr_color_heatmap")
@@ -676,36 +676,7 @@ if st.button("Run QQR Analysis", key="qqr_run"):
     import numpy as np
     import plotly.graph_objects as go
 
-    y = df[q_y].dropna()
-    x = df[q_x].loc[y.index]
-    qs = np.linspace(0.05, 0.95, max_quantiles)
-
-    z_matrix = np.zeros((len(qs), len(qs)))
-
-    for i, q1 in enumerate(qs):
-        y_q = np.quantile(y, q1)
-        for j, q2 in enumerate(qs):
-            x_q = np.quantile(x, q2)
-            z_matrix[i, j] = np.corrcoef(y[y <= y_q], x[x <= x_q])[0, 1]
-
-    # 2D Heatmap
-    fig_hm = go.Figure(data=go.Heatmap(
-        z=z_matrix,
-        x=[f"{q:.2f}" for q in qs],
-        y=[f"{q:.2f}" for q in qs],
-        colorscale="Viridis"
-    ))
-    fig_hm.update_layout(title="Quantile-on-Quantile Heatmap", xaxis_title=f"{q_x} Quantiles", yaxis_title=f"{q_y} Quantiles")
-    st.plotly_chart(fig_hm, use_container_width=True)
-
-    # 3D Surface
-    fig_3d = go.Figure(data=[go.Surface(z=z_matrix, x=qs, y=qs, colorscale="Turbo")])
-    fig_3d.update_layout(scene=dict(
-        xaxis_title=f"{q_x} Quantiles",
-        yaxis_title=f"{q_y} Quantiles",
-        zaxis_title="Correlation"
-    ), title="QQR 3D Surface")
-    st.plotly_chart(fig_3d, use_container_width=True)
+    # Handle both panel and non-panel
 
 # ======================================================================
 # 🟩 SECTION 13: MACHINE LEARNING FORECASTING (PROPHET MODEL)
