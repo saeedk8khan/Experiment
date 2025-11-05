@@ -6,4 +6,4 @@ seaborn
 plotly
 prophet
 statsmodels
-kaleido
+tabulate
