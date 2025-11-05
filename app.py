@@ -101,35 +101,53 @@ if filter_col:
 
 
 # ======================================================================
-# 🟩 SECTION 3: DESCRIPTIVE STATISTICS & DATA OVERVIEW (FINAL CLEAN VERSION)
+# 🟩 SECTION 3: DESCRIPTIVE STATISTICS & DATA OVERVIEW (RAW / LOG OPTION)
 # ======================================================================
 
 import io
+import numpy as np
 
 st.header("🧾 Descriptive Statistics & Data Overview")
+
+# 🟩 User selects whether to use raw or log-transformed data
+data_option = st.radio(
+    "Select data type for descriptive statistics:",
+    ["Raw Data", "Log-Transformed Data"],
+    horizontal=True
+)
+
+# 🟩 Prepare data according to user selection
+if data_option == "Log-Transformed Data":
+    # Replace non-positive values with NaN to avoid log errors
+    log_df = df.copy()
+    for col in log_df.select_dtypes(include=[np.number]).columns:
+        log_df[col] = log_df[col].apply(lambda x: np.log(x) if x > 0 else np.nan)
+    display_df = log_df
+else:
+    display_df = df
 
 col1, col2 = st.columns(2)
 
 # 🟩 Data Preview
 with col1:
-    st.subheader("Data Preview")
-    st.dataframe(df.head(50), use_container_width=True)
+    st.subheader(f"{data_option} Preview")
+    st.dataframe(display_df.head(50), use_container_width=True)
 
-# 🟩 Summary statistics with 3 decimal places
+# 🟩 Summary Statistics with 3 decimals
 with col2:
-    st.subheader("Summary Statistics (Rounded to 3 Decimals)")
-    summary_df = df.describe(include="all").round(3)
+    st.subheader(f"{data_option} Summary Statistics (Rounded to 3 Decimals)")
+    summary_df = display_df.describe(include="all").round(3)
     st.dataframe(summary_df, use_container_width=True)
 
 # 🟩 Download descriptive stats as Excel
 excel_buf = io.BytesIO()
 with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
-    summary_df.to_excel(writer, index=True, sheet_name="DescriptiveStats")
+    summary_df.to_excel(writer, index=True, sheet_name=f"{data_option}_Stats")
 
 st.download_button(
-    label="📥 Download Summary Statistics (Excel)",
+    label=f"📥 Download {data_option} Summary Statistics (Excel)",
     data=excel_buf.getvalue(),
-    file_name="summary_statistics.xlsx",
+    file_name=f"{data_option.lower().replace(' ', '_')}_summary_statistics.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
