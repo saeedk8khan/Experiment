@@ -98,7 +98,96 @@ if filter_col:
     minv, maxv = float(df[filter_col].min()), float(df[filter_col].max())
     lo, hi = st.sidebar.slider("Filter range", min_value=minv, max_value=maxv, value=(minv, maxv))
     df = df[(df[filter_col] >= lo) & (df[filter_col] <= hi)]
+# ======================================================================
+# 🟩 SECTION X: UNIT ROOT TEST (ADF & PP)
+# ======================================================================
 
+from statsmodels.tsa.stattools import adfuller, PhillipsPerron
+import io
+
+st.header("🔍 Unit Root Test (ADF & PP)")
+
+# 🟩 Variable selection
+selected_vars = st.multiselect("Select Variable(s) for Unit Root Test", df.columns)
+selected_lag = st.selectbox("Select Lag Order", list(range(0, 10)), index=0)
+
+# 🟩 Transformation level choice
+diff_option = st.radio(
+    "Select Data Level:",
+    ["Level (Original Data)", "First Difference"],
+    horizontal=True
+)
+
+if st.button("Run Unit Root Tests"):
+    try:
+        results = []
+
+        for col in selected_vars:
+            data_series = df[col].dropna()
+
+            # Apply first difference if selected
+            if diff_option == "First Difference":
+                data_series = data_series.diff().dropna()
+
+            # ADF test
+            adf_res = adfuller(data_series, maxlag=selected_lag, autolag=None)
+            adf_stat = round(adf_res[0], 4)
+            adf_p = round(adf_res[1], 4)
+            adf_lag = adf_res[2]
+            adf_aic = round(adf_res[5], 4)
+            adf_crit = adf_res[4]
+
+            results.append({
+                "Variable": col,
+                "Test": "ADF",
+                "Level": "First Diff" if diff_option == "First Difference" else "Level",
+                "Lag Used": adf_lag,
+                "AIC": adf_aic,
+                "Test Statistic": adf_stat,
+                "p-Value": adf_p,
+                "1% CV": round(adf_crit['1%'], 4),
+                "5% CV": round(adf_crit['5%'], 4),
+                "10% CV": round(adf_crit['10%'], 4)
+            })
+
+            # PP test
+            pp_res = PhillipsPerron(data_series, lags=selected_lag)
+            results.append({
+                "Variable": col,
+                "Test": "PP",
+                "Level": "First Diff" if diff_option == "First Difference" else "Level",
+                "Lag Used": selected_lag,
+                "AIC": None,
+                "Test Statistic": round(pp_res.stat, 4),
+                "p-Value": round(pp_res.pvalue, 4),
+                "1% CV": None,
+                "5% CV": None,
+                "10% CV": None
+            })
+
+        results_df = pd.DataFrame(results)
+
+        st.subheader("📊 Unit Root Test Results")
+        st.dataframe(results_df, use_container_width=True)
+
+        # 🟩 Copy results
+        st.markdown("#### 📋 Copy Results")
+        st.code(results_df.to_markdown(index=False), language="markdown")
+
+        # 🟩 Download Excel
+        excel_buf = io.BytesIO()
+        with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
+            results_df.to_excel(writer, index=False, sheet_name="UnitRootResults")
+
+        st.download_button(
+            label="📥 Download Unit Root Test Results (Excel)",
+            data=excel_buf.getvalue(),
+            file_name="unit_root_results.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        st.error(f"Error while running Unit Root Tests: {e}")
 
 # ======================================================================
 # 🟩 SECTION 3: DESCRIPTIVE STATISTICS & DATA OVERVIEW (RAW / LOG OPTION)
