@@ -247,23 +247,6 @@ except Exception as e:
     st.warning(f"Decomposition failed: {e}")
 
 # ======================================================================
-# 🟩 SECTION 11: ACF / PACF
-# ======================================================================
-st.header("📡 ACF & PACF")
-try:
-    fig_acf, ax_acf = plt.subplots(figsize=(10, 3))
-    plot_acf(df[dep_var].dropna(), ax=ax_acf, lags=40)
-    ax_acf.set_facecolor(bg_color)
-    st.pyplot(fig_acf)
-
-    fig_pacf, ax_pacf = plt.subplots(figsize=(10, 3))
-    plot_pacf(df[dep_var].dropna(), ax=ax_pacf, lags=40, method='ywm')
-    ax_pacf.set_facecolor(bg_color)
-    st.pyplot(fig_pacf)
-except Exception as e:
-    st.warning(f"ACF/PACF plotting failed: {e}")
-
-# ======================================================================
 # 🟩 SECTION 12: EXPORT / DOWNLOAD PROCESSED DATA
 # ======================================================================
 st.header("💾 Download Processed / Filtered Data")
