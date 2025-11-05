@@ -192,15 +192,32 @@ else:
     st.pyplot(fig_s)
 
 # ======================================================================
-# 🟩 SECTION 8: CORRELATION HEATMAP
+# ======================================================================
+# 🟩 SECTION 8: CORRELATION HEATMAP (WITH COLOR PALETTE SELECTION)
 # ======================================================================
 st.header("📉 Correlation Heatmap")
+
+# Sidebar color options for heatmap
+st.sidebar.header("Heatmap Settings")
+heatmap_palette = st.sidebar.selectbox(
+    "Select heatmap color palette",
+    ["coolwarm", "viridis", "plasma", "cividis", "magma", "crest", "rocket", "Spectral", "icefire", "vlag"],
+    index=0
+)
+
 corr = df[numeric_cols].corr()
 fig_c, axc = plt.subplots(figsize=(8, 6))
-sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=axc)
+sns.heatmap(
+    corr,
+    annot=True,
+    fmt=".2f",
+    cmap=heatmap_palette,
+    ax=axc,
+    cbar_kws={"shrink": 0.8}
+)
 axc.set_facecolor(bg_color)
+axc.set_title("Correlation Heatmap", fontsize=14, weight="bold")
 st.pyplot(fig_c)
-
 # ======================================================================
 # 🟩 SECTION 9: BOXPLOTS
 # ======================================================================
