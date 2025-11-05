@@ -657,192 +657,55 @@ if st.button("Run Granger Causality Test"):
 
 
 # ======================================================================
-# 🟩 SECTION: QUANTILE-ON-QUANTILE (QQR) ANALYSIS
+# 🟩 SECTION: QUANTILE-on-QUANTILE REGRESSION (QQR)
 # ======================================================================
-import io
-import numpy as np
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+st.header("📈 Quantile-on-Quantile Regression (QQR)")
 
-st.header("🧭 Quantile-on-Quantile (QQR) Analysis — 2D heatmap & 3D surface")
+q_y = st.selectbox("Dependent variable (Y)", options=numeric_cols, index=0, key="qqr_y")
+q_x = st.selectbox("Independent variable (X)", options=[c for c in numeric_cols if c != q_y], index=0, key="qqr_x")
 
-# -----------------------
-# UI: inputs
-# -----------------------
-st.markdown("Select dependent (Y) and independent (X). If your data is panel (long), optionally choose the panel column and a specific group (e.g., country).")
+# Optional: for panel data separation (e.g., country)
+panel_col = st.selectbox("Panel/Group column (optional)", options=[None] + list(df.columns), index=0, key="qqr_panel")
 
-col_y, col_x = st.columns(2)
-with col_y:
-    q_y = st.selectbox("Dependent variable (Y)", options=numeric_cols, index=0)
-with col_x:
-    q_x = st.selectbox("Independent variable (X)", options=[c for c in numeric_cols if c != q_y], index=0)
+color_heatmap = st.color_picker("Select Heatmap Color", "#00BFFF", key="qqr_color_heatmap")
+color_surface = st.color_picker("Select 3D Surface Color", "#FF6347", key="qqr_color_surface")
 
-# Panel options
-panel_col = st.selectbox("Panel column (optional)", options=[None] + [c for c in df.columns if df[c].nunique() > 1 and df[c].dtype == object], index=0)
-selected_group = None
-if panel_col:
-    groups = ["All"] + sorted(df[panel_col].dropna().unique().tolist())
-    selected_group = st.selectbox("Select group (or All)", options=groups, index=0)
+max_quantiles = st.slider("Number of Quantiles", min_value=5, max_value=30, value=10, key="qqr_quantiles")
 
-# Q-grid settings
-col_quant = st.columns(3)
-with col_quant[0]:
-    n_q = st.number_input("Number of quantiles (grid size)", min_value=5, max_value=101, value=21, step=2)
-with col_quant[1]:
-    bw = st.slider("Bandwidth (quantile fraction)", min_value=0.01, max_value=0.3, value=0.05, step=0.01,
-                   help="For each X-quantile θ we take observations with X between quantile(θ-bw/2) and quantile(θ+bw/2).")
-with col_quant[2]:
-    min_q = st.number_input("Min quantile", min_value=0.0, max_value=0.49, value=0.01, step=0.01)
-    max_q = st.number_input("Max quantile", min_value=0.51, max_value=1.0, value=0.99, step=0.01)
+if st.button("Run QQR Analysis", key="qqr_run"):
+    import numpy as np
+    import plotly.graph_objects as go
 
-if min_q >= max_q:
-    st.error("Min quantile must be smaller than Max quantile.")
-    st.stop()
+    y = df[q_y].dropna()
+    x = df[q_x].loc[y.index]
+    qs = np.linspace(0.05, 0.95, max_quantiles)
 
-taus = np.linspace(min_q, max_q, n_q)
-thetas = np.linspace(min_q, max_q, n_q)
+    z_matrix = np.zeros((len(qs), len(qs)))
 
-# Plot appearance
-st.sidebar.header("QQR Plot Settings")
-colorscale = st.sidebar.selectbox("Heatmap colorscale (Plotly)", ["Viridis","Cividis","Plasma","Magma","Turbo","RdBu","IceFire","Viridis"], index=0)
-surface_colorscale = st.sidebar.selectbox("Surface colorscale", ["Viridis","Cividis","Plasma","Magma","Turbo","RdBu"], index=0)
-interp_method = st.sidebar.selectbox("Heatmap interpolation", ["nearest","bilinear"], index=0)
+    for i, q1 in enumerate(qs):
+        y_q = np.quantile(y, q1)
+        for j, q2 in enumerate(qs):
+            x_q = np.quantile(x, q2)
+            z_matrix[i, j] = np.corrcoef(y[y <= y_q], x[x <= x_q])[0, 1]
 
-# Option to compute per-country or overall
-per_group = False
-if panel_col:
-    per_group = st.sidebar.checkbox("Apply per selected group (panel)", value=False)
-    # if checked, user must select a single group (selected_group already provides it)
+    # 2D Heatmap
+    fig_hm = go.Figure(data=go.Heatmap(
+        z=z_matrix,
+        x=[f"{q:.2f}" for q in qs],
+        y=[f"{q:.2f}" for q in qs],
+        colorscale="Viridis"
+    ))
+    fig_hm.update_layout(title="Quantile-on-Quantile Heatmap", xaxis_title=f"{q_x} Quantiles", yaxis_title=f"{q_y} Quantiles")
+    st.plotly_chart(fig_hm, use_container_width=True)
 
-# Run button
-if st.button("Run QQR Analysis"):
-    try:
-        # subset by group if needed
-        if panel_col and selected_group and selected_group != "All":
-            subdf = df[df[panel_col] == selected_group].copy()
-            if subdf.empty:
-                st.error("Selected group has no data.")
-                st.stop()
-        else:
-            subdf = df.copy()
-
-        x_series = subdf[q_x].dropna()
-        y_series = subdf[q_y].dropna()
-        # ensure same index alignment if necessary
-        joined = pd.concat([x_series, y_series], axis=1).dropna()
-        x = joined[q_x]
-        y = joined[q_y]
-        if x.empty or y.empty:
-            st.error("No overlapping valid observations for chosen variables.")
-            st.stop()
-
-        # Function to compute QQR matrix using local quantile-window approach
-        def compute_qqr_matrix(x, y, thetas, taus, bandwidth):
-            """
-            For each theta (quantile of x), select obs where x between quantile(theta - bw/2) and quantile(theta + bw/2).
-            Then compute the tau-quantile of y on that subset.
-            Returns matrix of shape (len(taus), len(thetas)) where rows=taus, cols=thetas.
-            """
-            n_t = len(thetas)
-            n_tau = len(taus)
-            mat = np.full((n_tau, n_t), np.nan)
-            # precompute quantiles of x for speed
-            for j, th in enumerate(thetas):
-                low_q = max(0.0, th - bandwidth/2)
-                high_q = min(1.0, th + bandwidth/2)
-                x_low = x.quantile(low_q)
-                x_high = x.quantile(high_q)
-                subset_mask = (x >= x_low) & (x <= x_high)
-                subset_y = y.loc[subset_mask]
-                if subset_y.size == 0:
-                    # leave column as NaN
-                    continue
-                # compute requested taus for this subset
-                for i, tau in enumerate(taus):
-                    try:
-                        mat[i, j] = float(np.quantile(subset_y, tau))
-                    except Exception:
-                        mat[i, j] = np.nan
-            return mat
-
-        with st.spinner("Computing QQR matrix..."):
-            mat = compute_qqr_matrix(x, y, thetas, taus, bw)
-
-        # DataFrame for download & display: index=taus as strings, columns=thetas
-        col_names = [f"theta_{round(t,3)}" for t in thetas]
-        row_names = [f"tau_{round(t,3)}" for t in taus]
-        mat_df = pd.DataFrame(mat, index=row_names, columns=col_names)
-
-        st.subheader("🔢 QQR Matrix (rows = τ for Y; cols = θ for X)")
-        st.dataframe(mat_df, use_container_width=True)
-
-        # Copyable table
-        st.markdown("#### 📋 Copy QQR Matrix (plain text)")
-        st.code(mat_df.to_string(), language="text")
-
-        # Download CSV
-        csv_buf = io.StringIO()
-        mat_df.to_csv(csv_buf)
-        st.download_button("📥 Download QQR Matrix (CSV)", csv_buf.getvalue().encode('utf-8'),
-                           file_name=f"qqr_matrix_{q_x}_vs_{q_y}.csv", mime="text/csv")
-
-        # -----------------------
-        # 2D Heatmap (Plotly)
-        # -----------------------
-        st.subheader("🖼️ 2D Heatmap (Quantiles of Y vs Quantiles of X)")
-        # px.imshow expects z as 2D array with rows mapping to y-axis (taus) and cols to x-axis (thetas)
-        try:
-            fig_h = px.imshow(mat,
-                              labels=dict(x="θ (quantile of X)", y="τ (quantile of Y)", color="Quantile(Y|X≈θ)"),
-                              x=np.round(thetas, 4),
-                              y=np.round(taus, 4),
-                              aspect="auto",
-                              color_continuous_scale=colorscale,
-                              origin='lower',
-                              zmin=np.nanmin(mat) if np.isfinite(np.nanmin(mat)) else None,
-                              zmax=np.nanmax(mat) if np.isfinite(np.nanmax(mat)) else None)
-            fig_h.update_layout(height=600)
-            fig_h.update_xaxes(tickmode='array')
-            fig_h.update_yaxes(tickmode='array')
-            st.plotly_chart(fig_h, use_container_width=True)
-        except Exception as e:
-            st.error(f"Heatmap plotting failed: {e}")
-
-        # Safe download of heatmap as PNG (Plotly)
-        st.subheader("📥 Download Heatmap")
-        try:
-            img_bytes = fig_h.to_image(format="png")
-            st.download_button("Download heatmap PNG", img_bytes, file_name=f"qqr_heatmap_{q_x}_vs_{q_y}.png", mime="image/png")
-        except Exception:
-            st.warning("PNG export for heatmap not available in this environment. Try locally for full export.")
-
-        # -----------------------
-        # 3D Surface (Plotly)
-        # -----------------------
-        st.subheader("🌐 3D Surface (Quantile Surface)")
-        try:
-            surface = go.Figure(data=[go.Surface(z=mat, x=np.round(thetas,4), y=np.round(taus,4), colorscale=surface_colorscale)])
-            surface.update_layout(scene=dict(
-                xaxis_title='θ (quantile of X)',
-                yaxis_title='τ (quantile of Y)',
-                zaxis_title='Quantile(Y|X≈θ)'
-            ), autosize=True, height=700)
-            st.plotly_chart(surface, use_container_width=True)
-        except Exception as e:
-            st.error(f"3D surface plotting failed: {e}")
-
-        # Safe download of surface as PNG
-        st.subheader("📥 Download 3D Surface")
-        try:
-            img2 = surface.to_image(format="png")
-            st.download_button("Download 3D surface PNG", img2, file_name=f"qqr_surface_{q_x}_vs_{q_y}.png", mime="image/png")
-        except Exception:
-            st.warning("PNG export for 3D surface not available in this environment. Run locally for full export.")
-
-    except Exception as e:
-        st.error(f"Error during QQR computation: {e}")
-
+    # 3D Surface
+    fig_3d = go.Figure(data=[go.Surface(z=z_matrix, x=qs, y=qs, colorscale="Turbo")])
+    fig_3d.update_layout(scene=dict(
+        xaxis_title=f"{q_x} Quantiles",
+        yaxis_title=f"{q_y} Quantiles",
+        zaxis_title="Correlation"
+    ), title="QQR 3D Surface")
+    st.plotly_chart(fig_3d, use_container_width=True)
 
 # ======================================================================
 # 🟩 SECTION 13: MACHINE LEARNING FORECASTING (PROPHET MODEL)
