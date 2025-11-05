@@ -98,8 +98,9 @@ if filter_col:
     minv, maxv = float(df[filter_col].min()), float(df[filter_col].max())
     lo, hi = st.sidebar.slider("Filter range", min_value=minv, max_value=maxv, value=(minv, maxv))
     df = df[(df[filter_col] >= lo) & (df[filter_col] <= hi)]
+
 # ======================================================================
-# 🟩 SECTION X: UNIT ROOT TEST (ADF & PP) — FIXED VERSION
+# 🟩 SECTION X: UNIT ROOT TEST (ADF & PP) — FINAL STABLE VERSION
 # ======================================================================
 
 import io
@@ -109,11 +110,11 @@ from arch.unitroot import PhillipsPerron
 
 st.header("🔍 Unit Root Test (ADF & PP)")
 
-# 🟩 Variable selection
+# Variable selection
 selected_vars = st.multiselect("Select Variable(s) for Unit Root Test", df.columns)
 selected_lag = st.selectbox("Select Lag Order", list(range(0, 10)), index=0)
 
-# 🟩 Transformation level choice
+# Transformation choice
 diff_option = st.radio(
     "Select Data Level:",
     ["Level (Original Data)", "First Difference"],
@@ -125,35 +126,36 @@ if st.button("Run Unit Root Tests"):
         results = []
 
         for col in selected_vars:
-            data_series = df[col].dropna()
+            series = df[col].dropna()
 
-            # Apply first difference if selected
+            # Apply differencing if needed
             if diff_option == "First Difference":
-                data_series = data_series.diff().dropna()
+                series = series.diff().dropna()
 
             # ----- ADF TEST -----
-            adf_res = adfuller(data_series, maxlag=selected_lag, autolag=None)
-            adf_stat = round(adf_res[0], 4)
-            adf_p = round(adf_res[1], 4)
-            adf_lag = adf_res[2]
-            adf_aic = round(adf_res[5], 4)
-            adf_crit = adf_res[4]
+            adf_result = adfuller(series, maxlag=selected_lag, autolag=None)
+            adf_stat = round(adf_result[0], 4)
+            adf_p = round(adf_result[1], 4)
+            adf_usedlag = adf_result[2]
+            adf_nobs = adf_result[3]
+            adf_crit = adf_result[4]
+            adf_icbest = adf_result[5] if len(adf_result) > 5 else np.nan
 
             results.append({
                 "Variable": col,
                 "Test": "ADF",
                 "Level": "First Diff" if diff_option == "First Difference" else "Level",
-                "Lag Used": adf_lag,
-                "AIC": adf_aic,
+                "Lag Used": adf_usedlag,
+                "AIC": round(adf_icbest, 4) if not np.isnan(adf_icbest) else None,
                 "Test Statistic": adf_stat,
                 "p-Value": adf_p,
-                "1% CV": round(adf_crit['1%'], 4),
-                "5% CV": round(adf_crit['5%'], 4),
-                "10% CV": round(adf_crit['10%'], 4)
+                "1% CV": round(adf_crit.get('1%'), 4),
+                "5% CV": round(adf_crit.get('5%'), 4),
+                "10% CV": round(adf_crit.get('10%'), 4)
             })
 
             # ----- PHILLIPS–PERRON TEST -----
-            pp_res = PhillipsPerron(data_series, lags=selected_lag)
+            pp_res = PhillipsPerron(series, lags=selected_lag)
             results.append({
                 "Variable": col,
                 "Test": "PP",
@@ -167,16 +169,18 @@ if st.button("Run Unit Root Tests"):
                 "10% CV": None
             })
 
+        # Combine results
         results_df = pd.DataFrame(results)
 
+        # Display
         st.subheader("📊 Unit Root Test Results")
         st.dataframe(results_df, use_container_width=True)
 
-        # 🟩 Copy results
+        # Copy results
         st.markdown("#### 📋 Copy Results")
         st.code(results_df.to_markdown(index=False), language="markdown")
 
-        # 🟩 Download Excel
+        # Download Excel
         excel_buf = io.BytesIO()
         with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
             results_df.to_excel(writer, index=False, sheet_name="UnitRootResults")
