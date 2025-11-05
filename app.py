@@ -178,21 +178,34 @@ plot_vars = st.multiselect(
     "Select variables to display",
     options=numeric_cols,
     default=[dep_var],
-    help="You can select one or more variables to display on the same chart."
+    help="Select one or more time series to display on the same chart."
 )
 
 # 🟩 Let user pick custom color for each selected variable
 st.sidebar.subheader("🎨 Series Colors")
 color_map = {}
 for var in plot_vars:
-    color_map[var] = st.sidebar.color_picker(f"Color for {var}", "#1f77b4")
+    color_map[var] = st.sidebar.color_picker(
+        f"Color for {var}",
+        "#1f77b4",
+        key=f"color_{var}"  # ✅ ensures unique Streamlit element IDs
+    )
 
-# 🟩 Background color picker (applies to entire chart)
+# 🟩 Background color picker (for the chart)
 st.sidebar.subheader("🖼️ Chart Background")
-plot_bg_color = st.sidebar.color_picker("Background color", "#ffffff")
+plot_bg_color = st.sidebar.color_picker(
+    "Background color (chart)",
+    "#ffffff",
+    key="plot_bg_color"
+)
 
 # 🟩 Backend selection (Plotly vs Matplotlib)
-plot_backend = st.sidebar.selectbox("Plot engine", ["Plotly (interactive)", "Matplotlib (static)"], index=0)
+plot_backend = st.sidebar.selectbox(
+    "Plot engine",
+    ["Plotly (interactive)", "Matplotlib (static)"],
+    index=0,
+    key="plot_engine"
+)
 
 # 🟩 Generate Plot
 if plot_backend.startswith("Plotly"):
@@ -215,7 +228,7 @@ if plot_backend.startswith("Plotly"):
         showlegend=True
     )
 
-    # Remove grid lines
+    # Remove grid lines for cleaner look
     fig.update_xaxes(showgrid=False)
     fig.update_yaxes(showgrid=False)
 
@@ -233,18 +246,23 @@ if plot_backend.startswith("Plotly"):
             mime="image/png"
         )
     except Exception:
-        st.warning("⚠️ PNG export not supported in this environment (Kaleido issue). "
-                   "Try running locally for full export support.")
+        st.warning(
+            "⚠️ PNG export not supported in this environment (Kaleido issue). "
+            "Try running locally for full export support."
+        )
 
 else:
     # Matplotlib backend
     fig, ax = plt.subplots(figsize=(12, 4))
     for var in plot_vars:
         ax.plot(df.index, df[var], label=var, color=color_map[var], linewidth=line_width)
+
     ax.set_facecolor(plot_bg_color)
     ax.set_title("Time Series Plot")
     ax.legend()
     ax.grid(False)  # No grid lines
+
+    # Display figure
     st.pyplot(fig)
 
     # 🟩 Matplotlib download option
