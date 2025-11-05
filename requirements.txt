@@ -7,3 +7,4 @@ plotly
 prophet
 statsmodels
 openpyxl
+arch
