@@ -378,68 +378,96 @@ st.download_button("Download CSV of processed data", csv_bytes, file_name="proce
 
 
 # ======================================================================
-# 🟩 SECTION: GRANGER CAUSALITY TEST
+# 🟩 SECTION: GRANGER CAUSALITY TEST (with Hypothesis Column)
 # ======================================================================
 
 import io
 from statsmodels.tsa.stattools import grangercausalitytests
 
-st.header("🔍 Granger Causality Test")
+st.header("🔍 Granger Causality Test (Single or Multiple Independent Variables)")
 
-# Select dependent and independent variables
-st.markdown("Select your **dependent** (Y) and **independent** (X) variables for the Granger causality test:")
+st.markdown("""
+This test evaluates whether one or more time series **Granger-cause** another.  
+For each independent variable (X), we test the hypothesis:  
+**H₀:** X does *not* Granger-cause Y  
+**H₁:** X *does* Granger-cause Y  
+""")
 
-col1, col2, col3 = st.columns([1, 1, 1.2])
+# --- Variable Selection ---
+numeric_columns = df.select_dtypes(include=["number"]).columns.tolist()
+
+col1, col2, col3 = st.columns([1, 1.5, 1])
 with col1:
-    dependent_var = st.selectbox("Dependent Variable (Y)", df.select_dtypes(include=["number"]).columns)
+    dependent_var = st.selectbox("Dependent Variable (Y)", numeric_columns)
 with col2:
-    independent_var = st.selectbox("Independent Variable (X)", df.select_dtypes(include=["number"]).columns)
+    independent_vars = st.multiselect(
+        "Independent Variable(s) (X)",
+        numeric_columns,
+        default=[x for x in numeric_columns if x != dependent_var]
+    )
 with col3:
     max_lag = st.selectbox("Maximum Lag", list(range(1, 10)), index=1)
 
-# Run test button
+# --- Run Test ---
 if st.button("Run Granger Causality Test"):
     try:
-        data_for_test = df[[dependent_var, independent_var]].dropna()
-        st.info(f"Running Granger Causality Test for **{dependent_var} ← {independent_var}** with max lag = {max_lag}")
+        if not independent_vars:
+            st.warning("Please select at least one independent variable.")
+        else:
+            results_list = []
 
-        results = grangercausalitytests(data_for_test, maxlag=max_lag, verbose=False)
+            for indep in independent_vars:
+                st.subheader(f"Results: {dependent_var} ← {indep}")
 
-        # Collect results into a clean DataFrame
-        rows = []
-        for lag, res in results.items():
-            f_test_pvalue = res[0]["ssr_ftest"][1]
-            chi2_pvalue = res[0]["ssr_chi2test"][1]
-            lr_pvalue = res[0]["lrtest"][1]
-            params_ftest = res[0]["params_ftest"][1]
-            rows.append({
-                "Lag": lag,
-                "F-test p-value": round(f_test_pvalue, 4),
-                "Chi-sq p-value": round(chi2_pvalue, 4),
-                "LR p-value": round(lr_pvalue, 4),
-                "Params F-test p-value": round(params_ftest, 4)
-            })
-        
-        granger_df = pd.DataFrame(rows)
-        st.dataframe(granger_df, use_container_width=True)
+                # Prepare test data
+                data_for_test = df[[dependent_var, indep]].dropna()
 
-        # Copyable Markdown view
-        st.markdown("#### 📋 Copy Results")
-        st.code(granger_df.to_markdown(index=False), language="markdown")
+                # Run test
+                results = grangercausalitytests(data_for_test, maxlag=max_lag, verbose=False)
 
-        # Download button for Excel
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-            granger_df.to_excel(writer, index=False, sheet_name="GrangerCausality")
-        st.download_button(
-            label="📥 Download Granger Causality Results (Excel)",
-            data=excel_buffer.getvalue(),
-            file_name=f"granger_causality_{dependent_var}_vs_{independent_var}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+                # Store results
+                rows = []
+                for lag, res in results.items():
+                    f_test_pvalue = res[0]["ssr_ftest"][1]
+                    chi2_pvalue = res[0]["ssr_chi2test"][1]
+                    lr_pvalue = res[0]["lrtest"][1]
+                    params_ftest = res[0]["params_ftest"][1]
+                    rows.append({
+                        "Hypothesis Tested": f"Does {indep} cause {dependent_var}?",
+                        "Independent Var": indep,
+                        "Dependent Var": dependent_var,
+                        "Lag": lag,
+                        "F-test p-value": round(f_test_pvalue, 4),
+                        "Chi-sq p-value": round(chi2_pvalue, 4),
+                        "LR p-value": round(lr_pvalue, 4),
+                        "Params F-test p-value": round(params_ftest, 4)
+                    })
+
+                temp_df = pd.DataFrame(rows)
+                results_list.append(temp_df)
+
+            # Combine all results
+            final_results = pd.concat(results_list, ignore_index=True)
+            st.dataframe(final_results, use_container_width=True)
+
+            # Copyable Markdown Table
+            st.markdown("#### 📋 Copy Results")
+            st.code(final_results.to_markdown(index=False), language="markdown")
+
+            # Excel Download
+            excel_buffer = io.BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                final_results.to_excel(writer, index=False, sheet_name="GrangerCausality")
+            st.download_button(
+                label="📥 Download Granger Causality Results (Excel)",
+                data=excel_buffer.getvalue(),
+                file_name=f"granger_causality_{dependent_var}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
     except Exception as e:
         st.error(f"Error while running Granger Causality Test: {e}")
+
 
 # ======================================================================
 # 🟩 SECTION 13: MACHINE LEARNING FORECASTING (PROPHET MODEL)
