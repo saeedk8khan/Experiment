@@ -1,3 +1,4 @@
+most
 # ======================================================================
 # 🟩 ADVANCED TIME SERIES ANALYZER – Single-file Streamlit App (app.py)
 # ======================================================================
@@ -102,42 +103,16 @@ if filter_col:
 # ======================================================================
 # 🟩 SECTION 3: DATA PREVIEW & DESCRIPTIVE STATISTICS
 # ======================================================================
-
-import io
-import pyperclip  # optional for local copy, not required for web
-import base64
-
-st.header("📈 Descriptive Statistics")
-
-# Compute descriptive statistics and round to 3 decimals
-desc_stats = df.describe().round(3)
-
-# Display dataframe with Streamlit built-in tool
-st.dataframe(desc_stats)
-
-# 🟩 Convert DataFrame to CSV for download
-csv_buffer = io.StringIO()
-desc_stats.to_csv(csv_buffer)
-csv_data = csv_buffer.getvalue()
-b64 = base64.b64encode(csv_data.encode()).decode()
-
-# 🟩 Download button
-st.download_button(
-    label="📥 Download Descriptive Statistics as CSV",
-    data=csv_data,
-    file_name="descriptive_statistics.csv",
-    mime="text/csv"
-)
-
-# 🟩 Copy-to-Clipboard (browser compatible using markdown)
-st.markdown("""
-**📋 Copy Table Data**
-Click below, then press `Ctrl + C` / `Cmd + C` after selecting all text.
-""")
-st.text(desc_stats.to_string())
-
-st.success("Descriptive statistics rounded to 3 decimals. You can copy or download results above.")
-
+st.header("🧾 Descriptive Statistics & Data Overview")
+col1, col2 = st.columns(2)
+with col1:
+    st.subheader("Data preview")
+    st.dataframe(df.head(50))
+with col2:
+    st.subheader("Summary statistics")
+    st.write(df.describe(include="all"))
+    st.subheader("Missing values")
+    st.write(df.isna().sum())
 
 # ======================================================================
 # 🟩 SECTION 4: DEPENDENT / INDEPENDENT VARIABLE SELECTION
@@ -244,81 +219,71 @@ sns.heatmap(
 axc.set_facecolor(bg_color)
 axc.set_title("Correlation Heatmap", fontsize=14, weight="bold")
 st.pyplot(fig_c)
-
 # ======================================================================
-# 🟩 SECTION 9: DISTRIBUTION COMPARISON (COLOR-CUSTOMIZABLE)
+# 🟩 SECTION 9: BOXPLOTS
+# ======================================================================
+# ======================================================================
+# 🟩 SECTION 9: DISTRIBUTION COMPARISON (BAR, BOX, VIOLIN, STRIP)
 # ======================================================================
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-st.header("📊 Distribution Comparison (Color Customizable)")
+st.header("📊 Distribution Comparison")
 
-# Select numeric column for analysis
+# Select a numeric column
 col_to_plot = st.selectbox("Select numeric variable for distribution analysis", numeric_cols, key="dist_col")
 
-# Sidebar configuration
-st.sidebar.header("🎨 Distribution Chart Settings")
+# Sidebar controls for background and style
+st.sidebar.header("Distribution Chart Settings")
 sns_style = st.sidebar.selectbox("Select Seaborn Style", ["whitegrid", "darkgrid", "white", "ticks", "dark"], index=1)
-plt_style = st.sidebar.selectbox("Select Matplotlib Style", ["default", "seaborn-v0_8-colorblind", "seaborn-v0_8-poster", "classic"], index=0)
-
-# 🟩 Individual color controls
-bar_color = st.sidebar.color_picker("Bar Plot Color", "#69b3a2")
-box_color = st.sidebar.color_picker("Box Plot Color", "#90ee90")
-violin_color = st.sidebar.color_picker("Violin Plot Color", "#f08080")
-strip_color = st.sidebar.color_picker("Strip Plot Color", "#808080")
-
-# Apply selected styles
+plt_style = st.sidebar.selectbox("Select Plot Style", ["default", "seaborn-v0_8-colorblind", "seaborn-v0_8-poster", "classic"], index=0)
 sns.set_style(sns_style)
 plt.style.use(plt_style)
 
-# 🟩 Function: create_distribution_chart (Color Customizable)
-def create_distribution_chart(data_series, y_label, title,
-                              bar_color=bar_color,
-                              box_color=box_color,
-                              violin_color=violin_color,
-                              strip_color=strip_color):
+# 🟩 Function: create_distribution_chart
+def create_distribution_chart(data_series, y_label, title):
     """
-    Creates a figure with 4 subplots (bar, box, violin, strip),
-    each with its own user-defined color.
+    Creates a figure with 4 horizontal subplots: bar, box, violin, strip.
+    Each shows the same data in a different style.
     """
     fig, axes = plt.subplots(1, 4, figsize=(16, 5), sharey=True)
     
+    # 🟩 Subplot 1: Bar Plot (Mean & Std Dev)
     mean_val = data_series.mean()
     std_val = data_series.std()
-
-    # 🟩 Subplot 1: Bar Plot (Mean & Std Dev)
-    sns.barplot(x=["Mean"], y=[mean_val], ax=axes[0], color=bar_color, ci=None)
+    sns.barplot(x=["Mean"], y=[mean_val], ax=axes[0], color="skyblue", ci=None)
     axes[0].errorbar(x=[0], y=[mean_val], yerr=std_val, fmt='o', color='black', capsize=5)
     axes[0].set_xlabel("Mean & Std Dev")
     axes[0].set_ylabel(y_label)
     axes[0].set_title("Bar Plot")
 
     # 🟩 Subplot 2: Box Plot
-    sns.boxplot(y=data_series, ax=axes[1], color=box_color)
+    sns.boxplot(y=data_series, ax=axes[1], color="lightgreen")
     axes[1].set_xlabel("Quartile Box")
     axes[1].set_title("Box Plot")
 
     # 🟩 Subplot 3: Violin Plot
-    sns.violinplot(y=data_series, ax=axes[2], color=violin_color)
+    sns.violinplot(y=data_series, ax=axes[2], color="lightcoral")
     axes[2].set_xlabel("Density")
     axes[2].set_title("Violin Plot")
 
     # 🟩 Subplot 4: Strip Plot (with mean line)
-    sns.stripplot(y=data_series, ax=axes[3], color=strip_color, jitter=True, alpha=0.6)
+    sns.stripplot(y=data_series, ax=axes[3], color="gray", jitter=True, alpha=0.6)
     axes[3].axhline(mean_val, color="red", linestyle="--", label=f"Mean = {mean_val:.2f}")
     axes[3].set_xlabel("Data Points")
     axes[3].set_title("Strip Plot")
     axes[3].legend(loc="upper right", fontsize="small")
 
-    # 🟩 Shared layout and final rendering
+    # 🟩 Shared layout
     fig.suptitle(title, fontsize=16, weight="bold")
     fig.tight_layout(pad=2)
     return fig
 
-# 🟩 Display final figure
+# 🟩 Generate and Display the Combined Distribution Plot
 if col_to_plot:
     fig = create_distribution_chart(df[col_to_plot].dropna(), y_label=col_to_plot, title=f"Distribution Overview: {col_to_plot}")
     st.pyplot(fig)
+
 
 # ======================================================================
 # 🟩 SECTION 10: DECOMPOSITION (TREND / SEASONAL / RESIDUAL)
