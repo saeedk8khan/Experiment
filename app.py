@@ -99,10 +99,6 @@ if filter_col:
     lo, hi = st.sidebar.slider("Filter range", min_value=minv, max_value=maxv, value=(minv, maxv))
     df = df[(df[filter_col] >= lo) & (df[filter_col] <= hi)]
 
-
-# ======================================================================
-# 🟩 SECTION 3: DATA PREVIEW & DESCRIPTIVE STATISTICS (Enhanced)
-# ======================================================================
 # ======================================================================
 # 🟩 SECTION 3: DATA PREVIEW & DESCRIPTIVE STATISTICS (Final Version)
 # ======================================================================
@@ -174,32 +170,74 @@ indep_var = st.selectbox("Independent variable (X) — optional", options=[None]
 # ======================================================================
 # 🟩 SECTION 5: TIME SERIES PLOT (LINE PLOT / MULTI-SERIES)
 # ======================================================================
+# ======================================================================
+# 🟩 SECTION 5: TIME SERIES PLOT (Enhanced – Single or All Variables)
+# ======================================================================
 st.header("📈 Time Series Plot")
+
+plot_mode = st.radio(
+    "Select Plot Mode:",
+    options=["Single Variable", "All Variables"],
+    index=0,
+    horizontal=True
+)
+
 if plot_backend.startswith("Plotly"):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df.index, y=df[dep_var], mode="lines+markers",
-                             name=dep_var, line=dict(width=line_width), marker=dict(size=marker_size)))
-    if indep_var and indep_var != dep_var:
-        fig.add_trace(go.Scatter(x=df.index, y=df[indep_var], mode="lines",
-                                 name=indep_var, line=dict(width=line_width)))
-    fig.update_layout(plot_bgcolor=bg_color, paper_bgcolor=bg_color, title=f"Time series: {dep_var}")
+
+    if plot_mode == "Single Variable":
+        # Plot only the selected dependent (and optional independent) variable
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df[dep_var], mode="lines+markers",
+            name=dep_var, line=dict(width=line_width), marker=dict(size=marker_size)
+        ))
+        if indep_var and indep_var != dep_var:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[indep_var], mode="lines",
+                name=indep_var, line=dict(width=line_width)
+            ))
+
+    else:
+        # Plot all numeric variables together
+        for col in numeric_cols:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[col], mode="lines",
+                name=col, line=dict(width=line_width)
+            ))
+
+    fig.update_layout(
+        title="Time Series Plot" if plot_mode == "All Variables" else f"Time Series: {dep_var}",
+        plot_bgcolor=bg_color,
+        paper_bgcolor=bg_color,
+        legend_title="Variables"
+    )
     if not show_grid:
-        fig.update_xaxes(showgrid=False); fig.update_yaxes(showgrid=False)
+        fig.update_xaxes(showgrid=False)
+        fig.update_yaxes(showgrid=False)
     st.plotly_chart(fig, use_container_width=True)
+
 else:
+    # Matplotlib backend
     if theme == "seaborn":
         sns.set()
     else:
         plt.style.use('classic' if theme == "classic" else 'default')
+
     fig, ax = plt.subplots(figsize=(12, 4))
-    ax.plot(df.index, df[dep_var], linewidth=line_width, marker='o', markersize=marker_size/2)
-    if indep_var and indep_var != dep_var:
-        ax.plot(df.index, df[indep_var], linewidth=line_width, alpha=0.8)
+
+    if plot_mode == "Single Variable":
+        ax.plot(df.index, df[dep_var], linewidth=line_width, marker='o', markersize=marker_size/2, label=dep_var)
+        if indep_var and indep_var != dep_var:
+            ax.plot(df.index, df[indep_var], linewidth=line_width, alpha=0.8, label=indep_var)
+    else:
+        for col in numeric_cols:
+            ax.plot(df.index, df[col], linewidth=line_width, label=col)
+
     ax.set_facecolor(bg_color)
     ax.grid(show_grid)
-    ax.set_title(f"Time series: {dep_var}")
+    ax.set_title("Time Series Plot" if plot_mode == "All Variables" else f"Time Series: {dep_var}")
+    ax.legend(loc="upper right", fontsize="small")
     st.pyplot(fig)
-
 # ======================================================================
 # 🟩 SECTION 6: HISTOGRAM / DISTRIBUTION
 # ======================================================================
