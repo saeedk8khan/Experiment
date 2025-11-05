@@ -167,9 +167,7 @@ st.header("🔎 Variable Selection")
 dep_var = st.selectbox("Dependent variable (Y)", options=numeric_cols, index=0)
 indep_var = st.selectbox("Independent variable (X) — optional", options=[None] + numeric_cols, index=0)
 
-# ======================================================================
-# 🟩 SECTION 5: TIME SERIES PLOT (LINE PLOT / MULTI-SERIES)
-# ======================================================================
+
 # ======================================================================
 # 🟩 SECTION 5: TIME SERIES PLOT (Enhanced – Single or All Variables)
 # ======================================================================
@@ -238,25 +236,6 @@ else:
     ax.set_title("Time Series Plot" if plot_mode == "All Variables" else f"Time Series: {dep_var}")
     ax.legend(loc="upper right", fontsize="small")
     st.pyplot(fig)
-# ======================================================================
-# 🟩 SECTION 6: HISTOGRAM / DISTRIBUTION
-# ======================================================================
-st.header("📊 Histogram / Distribution")
-hist_col = st.selectbox("Choose column for histogram", options=numeric_cols, index=0, key="hist")
-bins = st.slider("Bins", min_value=5, max_value=100, value=30, key="bins")
-if plot_backend.startswith("Plotly"):
-    fig_h = px.histogram(df.reset_index(), x=hist_col, nbins=bins, title=f"Histogram: {hist_col}")
-    fig_h.update_layout(plot_bgcolor=bg_color, paper_bgcolor=bg_color)
-    if not show_grid:
-        fig_h.update_xaxes(showgrid=False); fig_h.update_yaxes(showgrid=False)
-    st.plotly_chart(fig_h, use_container_width=True)
-else:
-    fig_h, axh = plt.subplots(figsize=(8, 4))
-    axh.hist(df[hist_col].dropna(), bins=bins)
-    axh.set_title(f"Histogram: {hist_col}")
-    axh.set_facecolor(bg_color)
-    axh.grid(show_grid)
-    st.pyplot(fig_h)
 
 # ======================================================================
 # 🟩 SECTION 7: SCATTER PLOT
