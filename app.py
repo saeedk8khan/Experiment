@@ -657,7 +657,7 @@ if st.button("Run Granger Causality Test"):
 
 
 # ======================================================================
-# 🟩 SECTION: QUANTILE-on-QUANTILE REGRESSION (Enhanced Final)
+# 🟩 SECTION: QUANTILE-on-QUANTILE REGRESSION (Stable, HD Final)
 # ======================================================================
 st.header("📈 Quantile-on-Quantile Regression (QQR)")
 
@@ -675,13 +675,12 @@ else:
     selected_groups = None
 
 color_heatmap = st.color_picker("Select Heatmap Base Color", "#1f77b4", key="qqr_color_heatmap")
-color_surface = st.color_picker("Select 3D Surface Color Scheme", "#FF6347", key="qqr_color_surface")
+color_surface = st.color_picker("Select 3D Surface Base Color", "#FF6347", key="qqr_color_surface")
 max_quantiles = st.slider("Number of Quantiles", min_value=5, max_value=30, value=10, key="qqr_quantiles")
 
 if st.button("Run QQR Analysis", key="qqr_run"):
     import numpy as np
     import plotly.graph_objects as go
-    import plotly.colors as pc
 
     def run_qqr(y, x, title_suffix=""):
         # Drop NA and align data safely
@@ -694,7 +693,6 @@ if st.button("Run QQR Analysis", key="qqr_run"):
         qs = np.linspace(0.05, 0.95, max_quantiles)
         z_matrix = np.full((len(qs), len(qs)), np.nan)
 
-        # Compute correlation at quantile intersections
         for i, q1 in enumerate(qs):
             y_q = np.quantile(y, q1)
             y_sub = y[y <= y_q]
@@ -705,10 +703,9 @@ if st.button("Run QQR Analysis", key="qqr_run"):
                 if common_len > 3:
                     z_matrix[i, j] = np.corrcoef(y_sub.iloc[:common_len], x_sub.iloc[:common_len])[0, 1]
 
-        # Replace NaNs with 0 for display stability
         z_matrix = np.nan_to_num(z_matrix, nan=0.0)
 
-        # 2D Heatmap
+        # ---- 2D Heatmap ----
         fig_hm = go.Figure(
             data=go.Heatmap(
                 z=z_matrix,
@@ -728,18 +725,23 @@ if st.button("Run QQR Analysis", key="qqr_run"):
         )
         st.plotly_chart(fig_hm, use_container_width=True)
 
-        # 3D Surface with crisp rendering
-        colorscale_3d = pc.make_colorscale([(0, color_surface), (1, "#003366")])
+        # ---- 3D Surface ----
+        # Proper colorscale definition
+        colorscale_3d = [
+            [0.0, color_surface],
+            [0.5, "#FFA07A"],
+            [1.0, "#003366"]
+        ]
+
         fig_3d = go.Figure(data=[go.Surface(
             z=z_matrix,
             x=qs,
             y=qs,
             colorscale=colorscale_3d,
-            contours=dict(
-                z=dict(show=True, usecolormap=True, project_z=True)
-            ),
+            contours=dict(z=dict(show=True, usecolormap=True, project_z=True)),
             showscale=True
         )])
+
         fig_3d.update_layout(
             scene=dict(
                 xaxis=dict(title=f"{q_x} Quantiles", titlefont=dict(size=14), tickfont=dict(size=10)),
@@ -748,12 +750,12 @@ if st.button("Run QQR Analysis", key="qqr_run"):
                 bgcolor="white"
             ),
             title=f"<b>3D Surface QQR {title_suffix}</b>",
-            autosize=True,
-            margin=dict(l=0, r=0, b=0, t=50)
+            margin=dict(l=0, r=0, b=0, t=50),
+            autosize=True
         )
         st.plotly_chart(fig_3d, use_container_width=True)
 
-    # Run QQR per panel or entire dataset
+    # Run QQR per panel or overall
     if panel_col and selected_groups:
         for grp in selected_groups:
             subdf = df[df[panel_col] == grp]
