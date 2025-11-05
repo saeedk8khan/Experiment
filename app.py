@@ -99,11 +99,13 @@ if filter_col:
     lo, hi = st.sidebar.slider("Filter range", min_value=minv, max_value=maxv, value=(minv, maxv))
     df = df[(df[filter_col] >= lo) & (df[filter_col] <= hi)]
 # ======================================================================
-# 🟩 SECTION X: UNIT ROOT TEST (ADF & PP)
+# 🟩 SECTION X: UNIT ROOT TEST (ADF & PP) — FIXED VERSION
 # ======================================================================
 
-from statsmodels.tsa.stattools import adfuller, PhillipsPerron
 import io
+import numpy as np
+from statsmodels.tsa.stattools import adfuller
+from arch.unitroot import PhillipsPerron
 
 st.header("🔍 Unit Root Test (ADF & PP)")
 
@@ -129,7 +131,7 @@ if st.button("Run Unit Root Tests"):
             if diff_option == "First Difference":
                 data_series = data_series.diff().dropna()
 
-            # ADF test
+            # ----- ADF TEST -----
             adf_res = adfuller(data_series, maxlag=selected_lag, autolag=None)
             adf_stat = round(adf_res[0], 4)
             adf_p = round(adf_res[1], 4)
@@ -150,7 +152,7 @@ if st.button("Run Unit Root Tests"):
                 "10% CV": round(adf_crit['10%'], 4)
             })
 
-            # PP test
+            # ----- PHILLIPS–PERRON TEST -----
             pp_res = PhillipsPerron(data_series, lags=selected_lag)
             results.append({
                 "Variable": col,
