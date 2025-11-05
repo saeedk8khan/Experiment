@@ -167,118 +167,77 @@ st.header("🔎 Variable Selection")
 dep_var = st.selectbox("Dependent variable (Y)", options=numeric_cols, index=0)
 indep_var = st.selectbox("Independent variable (X) — optional", options=[None] + numeric_cols, index=0)
 
-
 # ======================================================================
-# 🟩 SECTION 5: TIME SERIES PLOT (CUSTOM COLORS + SAFE DOWNLOAD)
+# 🟩 SECTION 5: TIME SERIES PLOT (LINE PLOT / MULTI-SERIES)
+# ======================================================================
+# ======================================================================
+# 🟩 SECTION 5: TIME SERIES PLOT (Enhanced – Single or All Variables)
 # ======================================================================
 st.header("📈 Time Series Plot")
 
-# 🟩 Select one or multiple variables to plot
-plot_vars = st.multiselect(
-    "Select variables to display",
-    options=numeric_cols,
-    default=[dep_var],
-    help="Select one or more time series to display on the same chart."
-)
-
-# 🟩 Let user pick custom color for each selected variable
-st.sidebar.subheader("🎨 Series Colors")
-color_map = {}
-for var in plot_vars:
-    color_map[var] = st.sidebar.color_picker(
-        f"Color for {var}",
-        "#1f77b4",
-        key=f"color_{var}"  # ✅ ensures unique Streamlit element IDs
-    )
-
-# 🟩 Background color picker (for the chart)
-st.sidebar.subheader("🖼️ Chart Background")
-plot_bg_color = st.sidebar.color_picker(
-    "Background color (chart)",
-    "#ffffff",
-    key="plot_bg_color"
-)
-
-# 🟩 Backend selection (Plotly vs Matplotlib)
-plot_backend = st.sidebar.selectbox(
-    "Plot engine",
-    ["Plotly (interactive)", "Matplotlib (static)"],
+plot_mode = st.radio(
+    "Select Plot Mode:",
+    options=["Single Variable", "All Variables"],
     index=0,
-    key="plot_engine"
+    horizontal=True
 )
 
-# 🟩 Generate Plot
 if plot_backend.startswith("Plotly"):
     fig = go.Figure()
 
-    for var in plot_vars:
+    if plot_mode == "Single Variable":
+        # Plot only the selected dependent (and optional independent) variable
         fig.add_trace(go.Scatter(
-            x=df.index,
-            y=df[var],
-            mode="lines+markers",
-            name=var,
-            line=dict(width=line_width, color=color_map[var]),
-            marker=dict(size=marker_size)
+            x=df.index, y=df[dep_var], mode="lines+markers",
+            name=dep_var, line=dict(width=line_width), marker=dict(size=marker_size)
         ))
+        if indep_var and indep_var != dep_var:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[indep_var], mode="lines",
+                name=indep_var, line=dict(width=line_width)
+            ))
+
+    else:
+        # Plot all numeric variables together
+        for col in numeric_cols:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[col], mode="lines",
+                name=col, line=dict(width=line_width)
+            ))
 
     fig.update_layout(
-        title="Time Series Plot",
-        plot_bgcolor=plot_bg_color,
-        paper_bgcolor=plot_bg_color,
-        showlegend=True
+        title="Time Series Plot" if plot_mode == "All Variables" else f"Time Series: {dep_var}",
+        plot_bgcolor=bg_color,
+        paper_bgcolor=bg_color,
+        legend_title="Variables"
     )
-
-    # Remove grid lines for cleaner look
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(showgrid=False)
-
-    # Display plot
+    if not show_grid:
+        fig.update_xaxes(showgrid=False)
+        fig.update_yaxes(showgrid=False)
     st.plotly_chart(fig, use_container_width=True)
-
-    # 🟩 DOWNLOAD PLOT AS PNG (SAFE MODE)
-    try:
-        import io
-        img_bytes = fig.to_image(format="png")
-        st.download_button(
-            label="📥 Download Plot as PNG",
-            data=img_bytes,
-            file_name="time_series_plot.png",
-            mime="image/png"
-        )
-    except Exception:
-        st.warning(
-            "⚠️ PNG export not supported in this environment (Kaleido issue). "
-            "Try running locally for full export support."
-        )
 
 else:
     # Matplotlib backend
+    if theme == "seaborn":
+        sns.set()
+    else:
+        plt.style.use('classic' if theme == "classic" else 'default')
+
     fig, ax = plt.subplots(figsize=(12, 4))
-    for var in plot_vars:
-        ax.plot(df.index, df[var], label=var, color=color_map[var], linewidth=line_width)
 
-    ax.set_facecolor(plot_bg_color)
-    ax.set_title("Time Series Plot")
-    ax.legend()
-    ax.grid(False)  # No grid lines
+    if plot_mode == "Single Variable":
+        ax.plot(df.index, df[dep_var], linewidth=line_width, marker='o', markersize=marker_size/2, label=dep_var)
+        if indep_var and indep_var != dep_var:
+            ax.plot(df.index, df[indep_var], linewidth=line_width, alpha=0.8, label=indep_var)
+    else:
+        for col in numeric_cols:
+            ax.plot(df.index, df[col], linewidth=line_width, label=col)
 
-    # Display figure
+    ax.set_facecolor(bg_color)
+    ax.grid(show_grid)
+    ax.set_title("Time Series Plot" if plot_mode == "All Variables" else f"Time Series: {dep_var}")
+    ax.legend(loc="upper right", fontsize="small")
     st.pyplot(fig)
-
-    # 🟩 Matplotlib download option
-    try:
-        import io
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", bbox_inches="tight")
-        st.download_button(
-            label="📥 Download Plot as PNG",
-            data=buf.getvalue(),
-            file_name="time_series_plot.png",
-            mime="image/png"
-        )
-    except Exception:
-        st.warning("⚠️ Unable to export the Matplotlib figure.")
-
 # ======================================================================
 # 🟩 SECTION 6: HISTOGRAM / DISTRIBUTION
 # ======================================================================
