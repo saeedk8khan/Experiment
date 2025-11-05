@@ -171,10 +171,11 @@ indep_var = st.selectbox("Independent variable (X) — optional", options=[None]
 # 🟩 SECTION 5: TIME SERIES PLOT (LINE PLOT / MULTI-SERIES)
 # ======================================================================
 # ======================================================================
-# 🟩 SECTION 5: TIME SERIES PLOT (Enhanced – Single or All Variables)
+# 🟩 SECTION 5: ADVANCED TIME SERIES PLOT (Color, Background, Download)
 # ======================================================================
 st.header("📈 Time Series Plot")
 
+# Plot mode selection
 plot_mode = st.radio(
     "Select Plot Mode:",
     options=["Single Variable", "All Variables"],
@@ -182,62 +183,115 @@ plot_mode = st.radio(
     horizontal=True
 )
 
+# Graph type selector
+graph_type = st.selectbox(
+    "Select Graph Type:",
+    ["Line", "Bar", "Area", "Step"],
+    index=0
+)
+
+# Background color selector
+bg_color = st.color_picker("Select Plot Background Color", "#FFFFFF")
+
+# Choose colors for variables
+st.subheader("🎨 Series Color Customization")
+if plot_mode == "Single Variable":
+    color_map = {dep_var: st.color_picker(f"Color for {dep_var}", "#1f77b4")}
+    if indep_var and indep_var != dep_var:
+        color_map[indep_var] = st.color_picker(f"Color for {indep_var}", "#ff7f0e")
+else:
+    color_map = {}
+    for col in numeric_cols:
+        color_map[col] = st.color_picker(f"Color for {col}", "#"+''.join([format(x, '02x') for x in np.random.randint(0, 255, 3)]))
+
+# Plotly backend (preferred for interactivity and download)
 if plot_backend.startswith("Plotly"):
     fig = go.Figure()
 
-    if plot_mode == "Single Variable":
-        # Plot only the selected dependent (and optional independent) variable
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df[dep_var], mode="lines+markers",
-            name=dep_var, line=dict(width=line_width), marker=dict(size=marker_size)
-        ))
-        if indep_var and indep_var != dep_var:
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df[indep_var], mode="lines",
-                name=indep_var, line=dict(width=line_width)
-            ))
+    def add_trace(col):
+        color = color_map.get(col, "#1f77b4")
+        if graph_type == "Line":
+            fig.add_trace(go.Scatter(x=df.index, y=df[col], mode="lines+markers",
+                                     name=col, line=dict(width=line_width, color=color)))
+        elif graph_type == "Bar":
+            fig.add_trace(go.Bar(x=df.index, y=df[col], name=col, marker_color=color))
+        elif graph_type == "Area":
+            fig.add_trace(go.Scatter(x=df.index, y=df[col], fill='tozeroy', mode="lines",
+                                     name=col, line=dict(width=line_width, color=color)))
+        elif graph_type == "Step":
+            fig.add_trace(go.Scatter(x=df.index, y=df[col], mode="lines",
+                                     name=col, line=dict(shape='hv', width=line_width, color=color)))
 
+    if plot_mode == "Single Variable":
+        add_trace(dep_var)
+        if indep_var and indep_var != dep_var:
+            add_trace(indep_var)
     else:
-        # Plot all numeric variables together
         for col in numeric_cols:
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df[col], mode="lines",
-                name=col, line=dict(width=line_width)
-            ))
+            add_trace(col)
 
     fig.update_layout(
-        title="Time Series Plot" if plot_mode == "All Variables" else f"Time Series: {dep_var}",
+        title=f"{graph_type} Plot ({'All Variables' if plot_mode=='All Variables' else dep_var})",
         plot_bgcolor=bg_color,
         paper_bgcolor=bg_color,
-        legend_title="Variables"
+        legend_title="Variables",
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=False)
     )
-    if not show_grid:
-        fig.update_xaxes(showgrid=False)
-        fig.update_yaxes(showgrid=False)
+
+    # Display in Streamlit
     st.plotly_chart(fig, use_container_width=True)
 
-else:
-    # Matplotlib backend
-    if theme == "seaborn":
-        sns.set()
-    else:
-        plt.style.use('classic' if theme == "classic" else 'default')
+    # Download option
+    st.subheader("📥 Download Plot")
+    img_bytes = fig.to_image(format="png")
+    st.download_button(
+        label="Download Plot as PNG",
+        data=img_bytes,
+        file_name="time_series_plot.png",
+        mime="image/png"
+    )
 
+else:
+    # Matplotlib fallback
     fig, ax = plt.subplots(figsize=(12, 4))
+    ax.set_facecolor(bg_color)
+
+    def plot_matplotlib(col):
+        color = color_map.get(col, None)
+        if graph_type == "Line":
+            ax.plot(df.index, df[col], linewidth=line_width, label=col, color=color)
+        elif graph_type == "Bar":
+            ax.bar(df.index, df[col], label=col, color=color, width=0.6)
+        elif graph_type == "Area":
+            ax.fill_between(df.index, df[col], alpha=0.5, label=col, color=color)
+        elif graph_type == "Step":
+            ax.step(df.index, df[col], linewidth=line_width, label=col, color=color, where='mid')
 
     if plot_mode == "Single Variable":
-        ax.plot(df.index, df[dep_var], linewidth=line_width, marker='o', markersize=marker_size/2, label=dep_var)
+        plot_matplotlib(dep_var)
         if indep_var and indep_var != dep_var:
-            ax.plot(df.index, df[indep_var], linewidth=line_width, alpha=0.8, label=indep_var)
+            plot_matplotlib(indep_var)
     else:
         for col in numeric_cols:
-            ax.plot(df.index, df[col], linewidth=line_width, label=col)
+            plot_matplotlib(col)
 
-    ax.set_facecolor(bg_color)
-    ax.grid(show_grid)
-    ax.set_title("Time Series Plot" if plot_mode == "All Variables" else f"Time Series: {dep_var}")
+    ax.grid(False)
+    ax.set_title(f"{graph_type} Plot ({'All Variables' if plot_mode=='All Variables' else dep_var})")
     ax.legend(loc="upper right", fontsize="small")
+
+    # Display and allow download
     st.pyplot(fig)
+    st.subheader("📥 Download Plot")
+    from io import BytesIO
+    buf = BytesIO()
+    fig.savefig(buf, format="png")
+    st.download_button(
+        label="Download Plot as PNG",
+        data=buf.getvalue(),
+        file_name="time_series_plot.png",
+        mime="image/png"
+    )
 # ======================================================================
 # 🟩 SECTION 6: HISTOGRAM / DISTRIBUTION
 # ======================================================================
