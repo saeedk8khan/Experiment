@@ -1,12 +1,9 @@
+kaleido
+plotly
 streamlit
 pandas
 numpy
 matplotlib
 seaborn
-plotly
 prophet
 statsmodels
-tabulate
-kaleido
-
-
