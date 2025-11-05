@@ -6,9 +6,3 @@ seaborn
 plotly
 prophet
 statsmodels
-
-
-
-
-
-
