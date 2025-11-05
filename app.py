@@ -754,19 +754,25 @@ if 'df' in locals():
         q_y = st.selectbox("Dependent variable (Y)", options=numeric_cols, key="qqr_y")
         q_x = st.selectbox("Independent variable (X)", options=numeric_cols, key="qqr_x")
 
-        group_col = st.selectbox("Optional Panel Identifier (e.g., Country)", options=["None"] + df.columns.tolist(), key="qqr_group")
+        # Automatically detect panel variable (categorical)
+        cat_cols = df.select_dtypes(exclude=np.number).columns.tolist()
+        if cat_cols:
+            panel_var = st.selectbox("Panel Identifier (e.g., Country)", options=cat_cols, key="qqr_panel")
+            unique_vals = df[panel_var].dropna().unique().tolist()
+            selected_grp = st.selectbox("Select Country", ["All Countries"] + unique_vals + ["Entire Dataset"], key="qqr_country")
+        else:
+            st.info("No panel variable detected. Running on entire dataset.")
+            selected_grp = "Entire Dataset"
 
         if st.button("Run QQR Analysis"):
-            if group_col != "None":
-                groups = df[group_col].dropna().unique()
+            if selected_grp == "All Countries" and cat_cols:
+                groups = df[panel_var].dropna().unique()
                 for grp in groups:
-                    subdf = df[df[group_col] == grp]
-                    st.markdown(f"### Country: {grp}")
+                    subdf = df[df[panel_var] == grp]
+                    st.markdown(f"### {panel_var}: {grp}")
                     fig_2d, fig_3d, table_df = run_qqr(subdf[q_y], subdf[q_x], title_suffix=f"({grp})")
-
                     st.plotly_chart(fig_2d, use_container_width=True)
                     st.plotly_chart(fig_3d, use_container_width=True)
-
                     st.dataframe(table_df, use_container_width=True)
                     st.download_button(
                         label=f"📥 Download QQR Results for {grp}",
@@ -774,14 +780,26 @@ if 'df' in locals():
                         file_name=f"QQR_{grp}.csv",
                         mime="text/csv"
                     )
+            elif selected_grp != "Entire Dataset" and selected_grp != "All Countries" and cat_cols:
+                subdf = df[df[panel_var] == selected_grp]
+                st.markdown(f"### {panel_var}: {selected_grp}")
+                fig_2d, fig_3d, table_df = run_qqr(subdf[q_y], subdf[q_x], title_suffix=f"({selected_grp})")
+                st.plotly_chart(fig_2d, use_container_width=True)
+                st.plotly_chart(fig_3d, use_container_width=True)
+                st.dataframe(table_df, use_container_width=True)
+                st.download_button(
+                    label=f"📥 Download QQR Results for {selected_grp}",
+                    data=table_df.to_csv(index=False).encode('utf-8'),
+                    file_name=f"QQR_{selected_grp}.csv",
+                    mime="text/csv"
+                )
             else:
                 fig_2d, fig_3d, table_df = run_qqr(df[q_y], df[q_x])
                 st.plotly_chart(fig_2d, use_container_width=True)
                 st.plotly_chart(fig_3d, use_container_width=True)
-
                 st.dataframe(table_df, use_container_width=True)
                 st.download_button(
-                    label="📥 Download QQR Results",
+                    label="📥 Download QQR Results (Full Dataset)",
                     data=table_df.to_csv(index=False).encode('utf-8'),
                     file_name="QQR_Results.csv",
                     mime="text/csv"
