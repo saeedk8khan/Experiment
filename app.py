@@ -103,6 +103,9 @@ if filter_col:
 # ======================================================================
 # 🟩 SECTION 3: DATA PREVIEW & DESCRIPTIVE STATISTICS (Enhanced)
 # ======================================================================
+# ======================================================================
+# 🟩 SECTION 3: DATA PREVIEW & DESCRIPTIVE STATISTICS (Final Version)
+# ======================================================================
 st.header("🧾 Descriptive Statistics & Data Overview")
 
 col1, col2 = st.columns(2)
@@ -111,30 +114,54 @@ with col1:
     st.subheader("Data Preview (First 50 Rows)")
     st.dataframe(df.head(50))
 
-    # 🟩 Download & Copy Options for Data Preview
+    # 🟩 Download button for Data Preview
     preview_csv = df.head(50).to_csv(index=False).encode('utf-8')
-    st.download_button("⬇️ Download Preview CSV", preview_csv, file_name="data_preview.csv", mime="text/csv")
-    st.code(df.head(50).to_markdown(index=False), language='markdown')
+    st.download_button(
+        label="⬇️ Download Preview CSV",
+        data=preview_csv,
+        file_name="data_preview.csv",
+        mime="text/csv"
+    )
+
+    # 🟩 Copy preview table text (without requiring tabulate)
+    preview_text = df.head(50).to_string(index=False)
+    st.text_area("📋 Copy Data Preview", preview_text, height=200)
 
 with col2:
     st.subheader("Summary Statistics (Rounded to 3 Decimals)")
     summary_df = df.describe(include="all").round(3)
     st.dataframe(summary_df)
 
-    # 🟩 Download & Copy Options for Summary Statistics
+    # 🟩 Download button for Summary Statistics
     summary_csv = summary_df.to_csv().encode('utf-8')
-    st.download_button("⬇️ Download Summary CSV", summary_csv, file_name="summary_statistics.csv", mime="text/csv")
-    st.code(summary_df.to_markdown(), language='markdown')
+    st.download_button(
+        label="⬇️ Download Summary CSV",
+        data=summary_csv,
+        file_name="summary_statistics.csv",
+        mime="text/csv"
+    )
+
+    # 🟩 Copy summary text (for easy manual copying)
+    summary_text = summary_df.to_string()
+    st.text_area("📋 Copy Summary Statistics", summary_text, height=200)
 
     st.subheader("Missing Values per Column")
     missing_df = df.isna().sum().reset_index()
     missing_df.columns = ["Column", "Missing Values"]
     st.dataframe(missing_df)
 
-    # 🟩 Download & Copy Options for Missing Values
+    # 🟩 Download button for Missing Values
     missing_csv = missing_df.to_csv(index=False).encode('utf-8')
-    st.download_button("⬇️ Download Missing Values CSV", missing_csv, file_name="missing_values.csv", mime="text/csv")
-    st.code(missing_df.to_markdown(index=False), language='markdown')
+    st.download_button(
+        label="⬇️ Download Missing Values CSV",
+        data=missing_csv,
+        file_name="missing_values.csv",
+        mime="text/csv"
+    )
+
+    # 🟩 Copy missing values table
+    missing_text = missing_df.to_string(index=False)
+    st.text_area("📋 Copy Missing Values", missing_text, height=150)
 
 
 # ======================================================================
