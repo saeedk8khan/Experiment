@@ -99,19 +99,43 @@ if filter_col:
     lo, hi = st.sidebar.slider("Filter range", min_value=minv, max_value=maxv, value=(minv, maxv))
     df = df[(df[filter_col] >= lo) & (df[filter_col] <= hi)]
 
+
 # ======================================================================
-# 🟩 SECTION 3: DATA PREVIEW & DESCRIPTIVE STATISTICS
+# 🟩 SECTION 3: DATA PREVIEW & DESCRIPTIVE STATISTICS (Enhanced)
 # ======================================================================
 st.header("🧾 Descriptive Statistics & Data Overview")
+
 col1, col2 = st.columns(2)
+
 with col1:
-    st.subheader("Data preview")
+    st.subheader("Data Preview (First 50 Rows)")
     st.dataframe(df.head(50))
+
+    # 🟩 Download & Copy Options for Data Preview
+    preview_csv = df.head(50).to_csv(index=False).encode('utf-8')
+    st.download_button("⬇️ Download Preview CSV", preview_csv, file_name="data_preview.csv", mime="text/csv")
+    st.code(df.head(50).to_markdown(index=False), language='markdown')
+
 with col2:
-    st.subheader("Summary statistics")
-    st.write(df.describe(include="all"))
-    st.subheader("Missing values")
-    st.write(df.isna().sum())
+    st.subheader("Summary Statistics (Rounded to 3 Decimals)")
+    summary_df = df.describe(include="all").round(3)
+    st.dataframe(summary_df)
+
+    # 🟩 Download & Copy Options for Summary Statistics
+    summary_csv = summary_df.to_csv().encode('utf-8')
+    st.download_button("⬇️ Download Summary CSV", summary_csv, file_name="summary_statistics.csv", mime="text/csv")
+    st.code(summary_df.to_markdown(), language='markdown')
+
+    st.subheader("Missing Values per Column")
+    missing_df = df.isna().sum().reset_index()
+    missing_df.columns = ["Column", "Missing Values"]
+    st.dataframe(missing_df)
+
+    # 🟩 Download & Copy Options for Missing Values
+    missing_csv = missing_df.to_csv(index=False).encode('utf-8')
+    st.download_button("⬇️ Download Missing Values CSV", missing_csv, file_name="missing_values.csv", mime="text/csv")
+    st.code(missing_df.to_markdown(index=False), language='markdown')
+
 
 # ======================================================================
 # 🟩 SECTION 4: DEPENDENT / INDEPENDENT VARIABLE SELECTION
