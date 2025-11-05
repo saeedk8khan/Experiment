@@ -378,22 +378,26 @@ st.download_button("Download CSV of processed data", csv_bytes, file_name="proce
 
 
 # ======================================================================
-# 🟩 SECTION: GRANGER CAUSALITY TEST (with Hypothesis Column)
+# 🟩 SECTION: GRANGER CAUSALITY TEST (Bidirectional, Clean Output)
 # ======================================================================
 
 import io
 from statsmodels.tsa.stattools import grangercausalitytests
 
-st.header("🔍 Granger Causality Test (Single or Multiple Independent Variables)")
+st.header("🔍 Granger Causality Test (Bidirectional with Hypothesis Column)")
 
 st.markdown("""
-This test evaluates whether one or more time series **Granger-cause** another.  
-For each independent variable (X), we test the hypothesis:  
-**H₀:** X does *not* Granger-cause Y  
-**H₁:** X *does* Granger-cause Y  
+This module evaluates **bidirectional Granger causality** between a dependent variable (Y)
+and selected independent variables (X).  
+For every pair (X, Y), both directions are tested automatically:
+
+- **X ➜ Y:** Does X Granger-cause Y?  
+- **Y ➜ X:** Does Y Granger-cause X?  
+
+**H₀:** No Granger causality  
+**H₁:** Granger causality exists  
 """)
 
-# --- Variable Selection ---
 numeric_columns = df.select_dtypes(include=["number"]).columns.tolist()
 
 col1, col2, col3 = st.columns([1, 1.5, 1])
@@ -408,7 +412,6 @@ with col2:
 with col3:
     max_lag = st.selectbox("Maximum Lag", list(range(1, 10)), index=1)
 
-# --- Run Test ---
 if st.button("Run Granger Causality Test"):
     try:
         if not independent_vars:
@@ -417,57 +420,55 @@ if st.button("Run Granger Causality Test"):
             results_list = []
 
             for indep in independent_vars:
-                st.subheader(f"Results: {dependent_var} ← {indep}")
+                # Test both directions automatically
+                for (x_var, y_var) in [(indep, dependent_var), (dependent_var, indep)]:
+                    st.subheader(f"Testing Direction: {x_var} ➜ {y_var}")
 
-                # Prepare test data
-                data_for_test = df[[dependent_var, indep]].dropna()
+                    data_for_test = df[[y_var, x_var]].dropna()
 
-                # Run test
-                results = grangercausalitytests(data_for_test, maxlag=max_lag, verbose=False)
+                    try:
+                        results = grangercausalitytests(data_for_test, maxlag=max_lag, verbose=False)
+                        rows = []
 
-                # Store results
-                rows = []
-                for lag, res in results.items():
-                    f_test_pvalue = res[0]["ssr_ftest"][1]
-                    chi2_pvalue = res[0]["ssr_chi2test"][1]
-                    lr_pvalue = res[0]["lrtest"][1]
-                    params_ftest = res[0]["params_ftest"][1]
-                    rows.append({
-                        "Hypothesis Tested": f"Does {indep} cause {dependent_var}?",
-                        "Independent Var": indep,
-                        "Dependent Var": dependent_var,
-                        "Lag": lag,
-                        "F-test p-value": round(f_test_pvalue, 4),
-                        "Chi-sq p-value": round(chi2_pvalue, 4),
-                        "LR p-value": round(lr_pvalue, 4),
-                        "Params F-test p-value": round(params_ftest, 4)
-                    })
+                        for lag, res in results.items():
+                            rows.append({
+                                "Hypothesis Tested": f"{x_var} ➜ {y_var}",
+                                "Lag": lag,
+                                "F-test p-value": round(res[0]["ssr_ftest"][1], 4),
+                                "Chi-sq p-value": round(res[0]["ssr_chi2test"][1], 4),
+                                "LR p-value": round(res[0]["lrtest"][1], 4),
+                                "Params F-test p-value": round(res[0]["params_ftest"][1], 4)
+                            })
 
-                temp_df = pd.DataFrame(rows)
-                results_list.append(temp_df)
+                        temp_df = pd.DataFrame(rows)
+                        results_list.append(temp_df)
 
-            # Combine all results
-            final_results = pd.concat(results_list, ignore_index=True)
-            st.dataframe(final_results, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"Failed for {x_var} ➜ {y_var}: {e}")
 
-            # Copyable Markdown Table
-            st.markdown("#### 📋 Copy Results")
-            st.code(final_results.to_markdown(index=False), language="markdown")
+            if results_list:
+                final_results = pd.concat(results_list, ignore_index=True)
+                st.dataframe(final_results, use_container_width=True)
 
-            # Excel Download
-            excel_buffer = io.BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-                final_results.to_excel(writer, index=False, sheet_name="GrangerCausality")
-            st.download_button(
-                label="📥 Download Granger Causality Results (Excel)",
-                data=excel_buffer.getvalue(),
-                file_name=f"granger_causality_{dependent_var}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+                # Copyable markdown version
+                st.markdown("#### 📋 Copy Results")
+                st.code(final_results.to_markdown(index=False), language="markdown")
+
+                # Excel download
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                    final_results.to_excel(writer, index=False, sheet_name="GrangerCausality")
+                st.download_button(
+                    label="📥 Download Granger Causality Results (Excel)",
+                    data=excel_buffer.getvalue(),
+                    file_name=f"granger_causality_{dependent_var}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.warning("No results were generated. Check data and variable selections.")
 
     except Exception as e:
         st.error(f"Error while running Granger Causality Test: {e}")
-
 
 # ======================================================================
 # 🟩 SECTION 13: MACHINE LEARNING FORECASTING (PROPHET MODEL)
