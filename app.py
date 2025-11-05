@@ -255,6 +255,64 @@ csv_bytes = to_download.to_csv(index=False).encode('utf-8')
 st.download_button("Download CSV of processed data", csv_bytes, file_name="processed_time_series.csv", mime="text/csv")
 
 # ======================================================================
+# 🟩 SECTION 13: MACHINE LEARNING FORECASTING (PROPHET MODEL)
+# ======================================================================
+from prophet import Prophet
+
+st.header("🤖 Machine Learning Forecasting (Prophet Model)")
+
+# Select dependent and independent variables
+dep_forecast = st.selectbox("Select dependent variable (target for forecasting)", numeric_cols, index=0, key="forecast_dep")
+regressors = st.multiselect("Select independent variables (optional regressors)", [c for c in numeric_cols if c != dep_forecast])
+
+# Select forecast horizon
+periods = st.number_input("Forecast horizon (future days to predict)", min_value=7, max_value=1000, value=90)
+
+if st.button("Run Forecast"):
+    # Prepare data for Prophet
+    df_prophet = df.reset_index()[[df.index.name, dep_forecast] + regressors].rename(columns={df.index.name: "ds", dep_forecast: "y"})
+
+    # Initialize model
+    model = Prophet(daily_seasonality=True, yearly_seasonality=True)
+    for reg in regressors:
+        model.add_regressor(reg)
+
+    # Fit model
+    try:
+        model.fit(df_prophet)
+        future = model.make_future_dataframe(periods=int(periods), freq="D")
+
+        # Add regressors to future if available
+        if regressors:
+            last_vals = df_prophet[regressors].iloc[-1:].to_dict(orient="records")[0]
+            for reg in regressors:
+                future[reg] = last_vals[reg]
+
+        forecast = model.predict(future)
+
+        # Plot results
+        st.subheader("Forecast Plot")
+        fig_f = go.Figure()
+        fig_f.add_trace(go.Scatter(x=df_prophet["ds"], y=df_prophet["y"], mode="lines", name="Observed"))
+        fig_f.add_trace(go.Scatter(x=forecast["ds"], y=forecast["yhat"], mode="lines", name="Forecast"))
+        fig_f.add_trace(go.Scatter(x=forecast["ds"], y=forecast["yhat_upper"], fill=None, mode="lines",
+                                   line_color="lightgray", name="Upper Bound"))
+        fig_f.add_trace(go.Scatter(x=forecast["ds"], y=forecast["yhat_lower"], fill='tonexty', mode="lines",
+                                   line_color="lightgray", name="Lower Bound", opacity=0.3))
+        fig_f.update_layout(title=f"Forecast for {dep_forecast} (Prophet Model)",
+                            plot_bgcolor=bg_color, paper_bgcolor=bg_color)
+        st.plotly_chart(fig_f, use_container_width=True)
+
+        st.subheader("Forecast Components")
+        st.pyplot(model.plot_components(forecast))
+
+        st.subheader("Forecast Table (Last 30 predictions)")
+        st.dataframe(forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(30))
+
+    except Exception as e:
+        st.error(f"Forecasting failed: {e}")
+
+# ======================================================================
 # 🟩 FOOTER & HELP
 # ======================================================================
 st.sidebar.header("Help & Run")
